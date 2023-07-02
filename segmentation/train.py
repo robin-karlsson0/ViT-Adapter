@@ -7,15 +7,16 @@ import time
 import warnings
 
 import mmcv
-import mmcv_custom   # noqa: F401,F403
-import mmseg_custom   # noqa: F401,F403
+import mmcv_custom  # noqa: F401,F403
+import mmseg_custom  # noqa: F401,F403
 import torch
 from mmcv.cnn.utils import revert_sync_batchnorm
 from mmcv.runner import get_dist_info, init_dist
 from mmcv.utils import Config, DictAction, get_git_hash
 from mmseg import __version__
-from mmseg.apis import init_random_seed, set_random_seed, train_segmentor
-from mmseg.datasets import build_dataset
+from mmseg_custom.apis import init_random_seed, set_random_seed
+from mmseg_custom.apis import train_segmentor
+from mmseg_custom.datasets import build_dataset
 from mmseg.models import build_segmentor
 from mmseg.utils import collect_env, get_root_logger
 
@@ -24,26 +25,24 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Train a segmentor')
     parser.add_argument('config', help='train config file path')
     parser.add_argument('--work-dir', help='the dir to save logs and models')
-    parser.add_argument(
-        '--load-from', help='the checkpoint file to load weights from')
-    parser.add_argument(
-        '--resume-from', help='the checkpoint file to resume from')
+    parser.add_argument('--load-from',
+                        help='the checkpoint file to load weights from')
+    parser.add_argument('--resume-from',
+                        help='the checkpoint file to resume from')
     parser.add_argument(
         '--no-validate',
         action='store_true',
         help='whether not to evaluate the checkpoint during training')
     group_gpus = parser.add_mutually_exclusive_group()
-    group_gpus.add_argument(
-        '--gpus',
-        type=int,
-        help='number of gpus to use '
-        '(only applicable to non-distributed training)')
-    group_gpus.add_argument(
-        '--gpu-ids',
-        type=int,
-        nargs='+',
-        help='ids of gpus to use '
-        '(only applicable to non-distributed training)')
+    group_gpus.add_argument('--gpus',
+                            type=int,
+                            help='number of gpus to use '
+                            '(only applicable to non-distributed training)')
+    group_gpus.add_argument('--gpu-ids',
+                            type=int,
+                            nargs='+',
+                            help='ids of gpus to use '
+                            '(only applicable to non-distributed training)')
     parser.add_argument('--seed', type=int, default=None, help='random seed')
     parser.add_argument(
         '--deterministic',
@@ -70,11 +69,10 @@ def parse_args():
         'It also allows nested list/tuple values, e.g. key="[(a,b),(c,d)]" '
         'Note that the quotation marks are necessary and that no white space '
         'is allowed.')
-    parser.add_argument(
-        '--launcher',
-        choices=['none', 'pytorch', 'slurm', 'mpi'],
-        default='none',
-        help='job launcher')
+    parser.add_argument('--launcher',
+                        choices=['none', 'pytorch', 'slurm', 'mpi'],
+                        default='none',
+                        help='job launcher')
     parser.add_argument('--local_rank', type=int, default=0)
     parser.add_argument(
         '--auto-resume',
@@ -168,10 +166,9 @@ def main():
     meta['seed'] = seed
     meta['exp_name'] = osp.basename(args.config)
 
-    model = build_segmentor(
-        cfg.model,
-        train_cfg=cfg.get('train_cfg'),
-        test_cfg=cfg.get('test_cfg'))
+    model = build_segmentor(cfg.model,
+                            train_cfg=cfg.get('train_cfg'),
+                            test_cfg=cfg.get('test_cfg'))
     model.init_weights()
 
     # SyncBN is not support for DP
@@ -201,14 +198,13 @@ def main():
     model.CLASSES = datasets[0].CLASSES
     # passing checkpoint meta for saving best checkpoint
     meta.update(cfg.checkpoint_config.meta)
-    train_segmentor(
-        model,
-        datasets,
-        cfg,
-        distributed=distributed,
-        validate=(not args.no_validate),
-        timestamp=timestamp,
-        meta=meta)
+    train_segmentor(model,
+                    datasets,
+                    cfg,
+                    distributed=distributed,
+                    validate=(not args.no_validate),
+                    timestamp=timestamp,
+                    meta=meta)
 
 
 if __name__ == '__main__':

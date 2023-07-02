@@ -1,6 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from mmseg.datasets.builder import DATASETS
-from mmseg.datasets.custom import CustomDataset
+from mmseg_custom.datasets.builder import DATASETS
+from mmseg_custom.datasets.custom import CustomDataset
+
 
 @DATASETS.register_module(force=True)
 class PotsdamDataset(CustomDataset):
@@ -17,8 +18,7 @@ class PotsdamDataset(CustomDataset):
                [255, 255, 0], [255, 0, 0]]
 
     def __init__(self, **kwargs):
-        super(PotsdamDataset, self).__init__(
-            img_suffix='.png',
-            seg_map_suffix='.png',
-            reduce_zero_label=True,
-            **kwargs)
+        super(PotsdamDataset, self).__init__(img_suffix='.png',
+                                             seg_map_suffix='.png',
+                                             reduce_zero_label=True,
+                                             **kwargs)

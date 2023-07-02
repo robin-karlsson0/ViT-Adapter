@@ -1,7 +1,7 @@
 import mmcv
 import numpy as np
 import torch
-from mmseg.datasets.builder import PIPELINES
+from mmseg_custom.datasets.builder import PIPELINES
 
 
 @PIPELINES.register_module()
@@ -31,6 +31,7 @@ class SETR_Resize(object):
         keep_ratio (bool): Whether to keep the aspect ratio when resizing the
             image.
     """
+
     def __init__(self,
                  img_scale=None,
                  multiscale_mode='range',
@@ -93,19 +94,17 @@ class SETR_Resize(object):
                 ``img_scale`` is sampled scale and None is just a placeholder
                 to be consistent with :func:`random_select`.
         """
-        
+
         assert mmcv.is_list_of(img_scales, tuple) and len(img_scales) == 2
         img_scale_long = [max(s) for s in img_scales]
         img_scale_short = [min(s) for s in img_scales]
-        long_edge = np.random.randint(
-            min(img_scale_long),
-            max(img_scale_long) + 1)
-        short_edge = np.random.randint(
-            min(img_scale_short),
-            max(img_scale_short) + 1)
+        long_edge = np.random.randint(min(img_scale_long),
+                                      max(img_scale_long) + 1)
+        short_edge = np.random.randint(min(img_scale_short),
+                                       max(img_scale_short) + 1)
         img_scale = (long_edge, short_edge)
         return img_scale, None
-    
+
     @staticmethod
     def random_sample_ratio(img_scale, ratio_range):
         """Randomly sample an img_scale when ``ratio_range`` is specified.
@@ -257,6 +256,7 @@ class PadShortSide(object):
         seg_pad_val (float, optional): Padding value of segmentation map.
             Default: 255.
     """
+
     def __init__(self, size=None, pad_val=0, seg_pad_val=255):
         self.size = size
         self.pad_val = pad_val
@@ -310,6 +310,7 @@ class PadShortSide(object):
 @PIPELINES.register_module()
 class MapillaryHack(object):
     """map MV 65 class to 19 class like Cityscapes."""
+
     def __init__(self):
         self.map = [[13, 24, 41], [2, 15], [17], [6], [3],
                     [45, 47], [48], [50], [30], [29], [27], [19], [20, 21, 22],
