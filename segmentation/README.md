@@ -30,6 +30,29 @@ ln -s ../detection/ops ./
 cd ops & sh make.sh # compile deformable attention
 ```
 
+Universal VL embedding segmentation
+```
+export PYTHONPATH=.
+
+# Install CLIP
+pip install ftfy regex tqdm
+pip install git+https://github.com/openai/CLIP.git
+
+# Install OpenCLIP
+TODO
+
+# Convert dataset semantic masks --> VL index masks
+python tools/convert_datasets/cityscapes_vl.py
+--> annotation.npz
+--> text2idx_star.pkl
+
+# Pregenerate text embeddings
+python tools/gen_idx_star2emb.py
+--> idx_star2emb.pkl
+
+# Train model
+```
+
 ## Data Preparation
 
 Preparing ADE20K/Cityscapes/COCO Stuff/Pascal Context according to the [guidelines](https://github.com/open-mmlab/mmsegmentation/blob/master/docs/en/dataset_prepare.md#prepare-datasets) in MMSegmentation.

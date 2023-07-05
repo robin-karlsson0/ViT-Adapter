@@ -3,8 +3,11 @@ import mmcv
 import numpy as np
 from mmcv.utils import deprecated_api_warning, is_tuple_of
 from numpy import random
+from scipy.ndimage import zoom
 
 from ..builder import PIPELINES
+
+from tools.convert_datasets.txt2idx_star import load_register
 
 
 @PIPELINES.register_module()
@@ -259,13 +262,17 @@ class Resize(object):
         """Resize semantic segmentation map with ``results['scale']``."""
         for key in results.get('seg_fields', []):
             if self.keep_ratio:
-                gt_seg = mmcv.imrescale(results[key],
-                                        results['scale'],
-                                        interpolation='nearest')
+                gt_seg = zoom(results[key],
+                              results['scale_factor'][0],
+                              order=0)
+                # gt_seg = mmcv.imrescale(results[key],
+                #                         results['scale'],
+                #                         interpolation='nearest')
             else:
-                gt_seg = mmcv.imresize(results[key],
-                                       results['scale'],
-                                       interpolation='nearest')
+                raise NotImplementedError()
+                # gt_seg = mmcv.imresize(results[key],
+                #                        results['scale'],
+                #                        interpolation='nearest')
             results[key] = gt_seg
 
     def __call__(self, results):
@@ -397,9 +404,15 @@ class Pad(object):
     def _pad_seg(self, results):
         """Pad masks according to ``results['pad_shape']``."""
         for key in results.get('seg_fields', []):
-            results[key] = mmcv.impad(results[key],
-                                      shape=results['pad_shape'][:2],
-                                      pad_val=self.seg_pad_val)
+            height, width = results[key].shape
+            pad_h = results['pad_shape'][0] - height
+            pad_w = results['pad_shape'][1] - width
+            padding = ((0, pad_h), (0, pad_w))
+            vals = (self.seg_pad_val, self.seg_pad_val)
+            results[key] = np.pad(results[key], padding, constant_values=vals)
+            # results[key] = mmcv.impad(results[key],
+            #                           shape=results['pad_shape'][:2],
+            #                           pad_val=self.seg_pad_val)
 
     def __call__(self, results):
         """Call function to pad images, masks, semantic segmentation maps.
@@ -419,6 +432,52 @@ class Pad(object):
         repr_str = self.__class__.__name__
         repr_str += f'(size={self.size}, size_divisor={self.size_divisor}, ' \
                     f'pad_val={self.pad_val})'
+        return repr_str
+
+
+@PIPELINES.register_module()
+class Embed(object):
+    """
+    """
+
+    def __init__(self, idx_star2emb_path='./idx_star2emb.pkl'):
+        self.idx_star2emb = load_register(idx_star2emb_path)
+        self.valid_idxs = set(self.idx_star2emb.keys())
+
+        emb = list(self.idx_star2emb.values())[0]
+        self.emb_dim = emb.shape[1]
+
+    def _embed_idx_mask(self, results):
+        for key in results.get('seg_fields', []):
+            idx_map = results[key]
+            h, w = idx_map.shape
+            emb_map = np.zeros((h, w, self.emb_dim))
+            idxs = set(np.unique(idx_map))
+            idxs = idxs.intersection(self.valid_idxs)
+            for idx in idxs:
+                emb = self.idx_star2emb[idx]
+                mask = idx_map == idx
+                emb_map[mask] = emb
+
+            emb_map = np.transpose(emb_map, (2, 0, 1))
+            results[key] = emb_map
+
+    def __call__(self, results):
+        """Call function to ...
+
+        Args:
+            results (dict): Result dict from loading pipeline.
+
+        Returns:
+            dict: Updated result dict.
+        """
+
+        self._embed_idx_mask(results)
+        return results
+
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        repr_str += f'(len(idx_star2emb)={len(self.idx_star2emb)}, emb_dim={self.emb_dim})'
         return repr_str
 
 

@@ -131,13 +131,14 @@ class LoadAnnotations(object):
                                 results['ann_info']['seg_map'])
         else:
             filename = results['ann_info']['seg_map']
-        img_bytes = self.file_client.get(filename)
+        # img_bytes = self.file_client.get(filename)
 
         # Load compressed .npz matrix with txt indices
         gt_semantic_seg = np.load(filename)
         gt_semantic_seg = gt_semantic_seg.f.arr_0
 
-        # Convert idx matrix --> dense embedding map
+        # Transform idx --> VL embedding
+        # gt_semantic_seg = np.stack([gt_semantic_seg] * 2)
 
         # # gt_semantic_seg = mmcv.imfrombytes(
         #     img_bytes, flag='unchanged',

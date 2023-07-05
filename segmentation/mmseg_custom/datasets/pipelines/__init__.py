@@ -9,7 +9,7 @@ from .compose import Compose
 from .transforms import (CLAHE, AdjustGamma, Normalize, Pad,
                          PhotoMetricDistortion, RandomCrop, RandomCutOut,
                          RandomFlip, RandomRotate, Rerange, Resize, RGB2Gray,
-                         SegRescale)
+                         SegRescale, Embed)
 
 __all__ = [
     'DefaultFormatBundle', 'ToMask', 'SETR_Resize', 'PadShortSide',
@@ -18,5 +18,5 @@ __all__ = [
     'RandomCrop', 'RandomCutOut', 'RandomFlip', 'RandomRotate', 'Rerange',
     'Resize', 'RGB2Gray', 'SegRescale', 'Collect', 'ImageToTensor',
     'ToDataContainer', 'ToTensor', 'Transpose', 'to_tensor',
-    'MultiScaleFlipAug'
+    'MultiScaleFlipAug', 'Embed'
 ]
