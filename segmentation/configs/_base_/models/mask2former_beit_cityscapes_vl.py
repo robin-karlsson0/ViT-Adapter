@@ -1,7 +1,7 @@
 # model_cfg
-num_things_classes = 0
-num_stuff_classes = 767  # One less than true emb. dim.
-num_classes = num_things_classes + num_stuff_classes
+# num_things_classes = 0
+# num_stuff_classes = 768  # One less than true emb. dim.
+# num_classes = num_things_classes + num_stuff_classes
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
     type='EncoderDecoderMask2FormerVL',
@@ -25,8 +25,9 @@ model = dict(
         feat_channels=256,
         out_channels=256,
         in_index=[0, 1, 2, 3],
-        num_things_classes=num_things_classes,
-        num_stuff_classes=num_stuff_classes,
+        emb_dim=768,
+        # num_things_classes=num_things_classes,
+        # num_stuff_classes=num_stuff_classes,
         num_queries=100,
         num_transformer_feat_level=3,
         pixel_decoder=dict(
@@ -90,11 +91,15 @@ model = dict(
                                                     'self_attn', 'norm', 'ffn',
                                                     'norm')),
             init_cfg=None),
-        loss_cls=dict(type='CrossEntropyLoss',
-                      use_sigmoid=False,
-                      loss_weight=2.0,
+        loss_cls=dict(type='CosineEmbLoss',
+                      margin=0.5,
                       reduction='mean',
-                      class_weight=[1.0] * num_classes + [0.1]),
+                      loss_weight=1.0),
+        # loss_cls=dict(type='CrossEntropyLoss',
+        #               use_sigmoid=False,
+        #               loss_weight=2.0,
+        #               reduction='mean',
+        #               class_weight=[1.0] * num_classes + [0.1]),
         loss_mask=dict(type='CrossEntropyLoss',
                        use_sigmoid=True,
                        reduction='mean',
@@ -106,20 +111,26 @@ model = dict(
                        naive_dice=True,
                        eps=1.0,
                        loss_weight=5.0)),
-    train_cfg=dict(num_points=12544,
-                   oversample_ratio=3.0,
-                   importance_sample_ratio=0.75,
-                   assigner=dict(type='MaskHungarianAssigner',
-                                 cls_cost=dict(type='ClassificationCost',
-                                               weight=2.0),
-                                 mask_cost=dict(type='CrossEntropyLossCost',
-                                                weight=5.0,
-                                                use_sigmoid=True),
-                                 dice_cost=dict(type='DiceCost',
-                                                weight=5.0,
-                                                pred_act=True,
-                                                eps=1.0)),
-                   sampler=dict(type='MaskPseudoSampler')),
+    train_cfg=dict(
+        num_points=12544,
+        oversample_ratio=3.0,
+        importance_sample_ratio=0.75,
+        assigner=dict(
+            type='MaskHungarianAssignerVL',
+            # cls_cost=dict(type='ClassificationCost',
+            #               weight=2.0),
+            idx_star2emb_path='./idx_star2emb.pkl',
+            ignore_emb_idx=4294967295,  # np.iinfo(np.uint32).max
+            cls_cost=dict(
+                type='CosEmbCost',
+                weight=2.0,
+            ),
+            mask_cost=dict(type='CrossEntropyLossCost',
+                           weight=5.0,
+                           use_sigmoid=True),
+            dice_cost=dict(type='DiceCost', weight=5.0, pred_act=True,
+                           eps=1.0)),
+        sampler=dict(type='MaskPseudoSamplerVL')),
     test_cfg=dict(
         panoptic_on=True,
         # For now, the dataset does not support

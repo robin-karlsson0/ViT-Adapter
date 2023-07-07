@@ -1,6 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 from ..builder import MATCH_COST
@@ -29,6 +28,7 @@ class FocalLossCost:
                 [-0.4099, -0.3795, -0.2929],
                 [-0.1950, -0.1207, -0.2626]])
     """
+
     def __init__(self, weight=1., alpha=0.25, gamma=2, eps=1e-12):
         self.weight = weight
         self.alpha = alpha
@@ -47,9 +47,9 @@ class FocalLossCost:
         """
         cls_pred = cls_pred.sigmoid()
         neg_cost = -(1 - cls_pred + self.eps).log() * (
-                1 - self.alpha) * cls_pred.pow(self.gamma)
+            1 - self.alpha) * cls_pred.pow(self.gamma)
         pos_cost = -(cls_pred + self.eps).log() * self.alpha * (
-                1 - cls_pred).pow(self.gamma)
+            1 - cls_pred).pow(self.gamma)
         cls_cost = pos_cost[:, gt_labels] - neg_cost[:, gt_labels]
         return cls_cost * self.weight
 
@@ -64,6 +64,7 @@ class MaskFocalLossCost(FocalLossCost):
         gamma (int | float, optional): focal_loss gamma.
         eps (float, optional): default 1e-12.
     """
+
     def __call__(self, cls_pred, gt_labels):
         """
         Args:
@@ -80,9 +81,9 @@ class MaskFocalLossCost(FocalLossCost):
         hw = cls_pred.shape[1]
         cls_pred = cls_pred.sigmoid()
         neg_cost = -(1 - cls_pred + self.eps).log() * (
-                1 - self.alpha) * cls_pred.pow(self.gamma)
+            1 - self.alpha) * cls_pred.pow(self.gamma)
         pos_cost = -(cls_pred + self.eps).log() * self.alpha * (
-                1 - cls_pred).pow(self.gamma)
+            1 - cls_pred).pow(self.gamma)
 
         cls_cost = torch.einsum('nc,mc->nm', pos_cost, gt_labels) + \
                    torch.einsum('nc,mc->nm', neg_cost, (1 - gt_labels))
@@ -109,6 +110,7 @@ class ClassificationCost:
                 [-0.3664, -0.3455, -0.2881],
                 [-0.3343, -0.2701, -0.3956]])
     """
+
     def __init__(self, weight=1.):
         self.weight = weight
 
@@ -132,6 +134,36 @@ class ClassificationCost:
 
 
 @MATCH_COST.register_module()
+class CosEmbCost:
+    """
+    """
+
+    def __init__(self, weight: float = 1.):
+        self.weight = weight
+        # Dict for converting 'idx' --> VL embeddings
+
+    def __call__(self, emb_pred: torch.Tensor,
+                 emb_labels: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            emb_pred: (100,D)
+            emb_labels: (N,D)
+
+        Returns:
+            Compatibility score tensor (100,N) over all regions 'n'
+        """
+
+        emb_pred_norm = F.normalize(emb_pred)
+        emb_labels_norm = F.normalize(emb_labels)
+        cos_dist_cost = 1 - torch.matmul(emb_pred_norm, emb_labels_norm.T)
+
+        # n = len(gt_labels)
+        # cos_dist_cost /= n
+
+        return cos_dist_cost
+
+
+@MATCH_COST.register_module()
 class DiceCost:
     """Cost of mask assignments based on dice losses.
 
@@ -141,6 +173,7 @@ class DiceCost:
             Defaults to False.
         eps (float, optional): default 1e-12.
     """
+
     def __init__(self, weight=1., pred_act=False, eps=1e-3):
         self.weight = weight
         self.pred_act = pred_act
@@ -188,6 +221,7 @@ class CrossEntropyLossCost:
         use_sigmoid (bool, optional): Whether the prediction uses sigmoid
                 of softmax. Defaults to True.
     """
+
     def __init__(self, weight=1., use_sigmoid=True):
         assert use_sigmoid, 'use_sigmoid = False is not supported yet.'
         self.weight = weight
@@ -206,10 +240,12 @@ class CrossEntropyLossCost:
         cls_pred = cls_pred.flatten(1).float()
         gt_labels = gt_labels.flatten(1).float()
         n = cls_pred.shape[1]
-        pos = F.binary_cross_entropy_with_logits(
-            cls_pred, torch.ones_like(cls_pred), reduction='none')
-        neg = F.binary_cross_entropy_with_logits(
-            cls_pred, torch.zeros_like(cls_pred), reduction='none')
+        pos = F.binary_cross_entropy_with_logits(cls_pred,
+                                                 torch.ones_like(cls_pred),
+                                                 reduction='none')
+        neg = F.binary_cross_entropy_with_logits(cls_pred,
+                                                 torch.zeros_like(cls_pred),
+                                                 reduction='none')
         cls_cost = torch.einsum('nc,mc->nm', pos, gt_labels) + \
             torch.einsum('nc,mc->nm', neg, 1 - gt_labels)
         cls_cost = cls_cost / n

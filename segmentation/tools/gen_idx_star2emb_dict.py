@@ -1,9 +1,9 @@
 import argparse
-import pickle
+import os
+import torch
+import numpy as np
 
 import clip
-import torch
-import os
 
 from tools.convert_datasets.txt2idx_star import load_register, save_register
 
@@ -21,6 +21,9 @@ if __name__ == '__main__':
                         type=str,
                         default='clip',
                         help='Implemented options: \{clip\}.')
+    parser.add_argument('--add_ignore_emb',
+                        type=bool,
+                        action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
 
     encoder_type = args.encoder
@@ -51,8 +54,17 @@ if __name__ == '__main__':
         txt = torch.tensor(clip.tokenize(txt)).to(device)
         with torch.no_grad():
             emb = encoder(txt)
-            emb = emb.cpu()
-        idx_star2emb[idx] = emb.float()
+            emb = emb.cpu().float()
+        idx_star2emb[idx] = emb
+
+    if args.add_ignore_emb:
+        idx = np.iinfo(np.uint32).max
+        txt = 'background'
+        txt = torch.tensor(clip.tokenize(txt)).to(device)
+        with torch.no_grad():
+            emb = encoder(txt)
+            emb = emb.cpu().float()
+        idx_star2emb[idx] = emb
 
     idx_star2emb_path = os.path.join(args.output_path, 'idx_star2emb.pkl')
     save_register(idx_star2emb_path, idx_star2emb)

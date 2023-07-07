@@ -91,15 +91,19 @@ class EncoderDecoderMask2FormerVL(EncoderDecoderMask2Former):
             dict[str, Tensor]: a dictionary of loss components
         """
 
-        emb_map = self.embed_seg_masks(gt_semantic_seg)
+        #gt_labels = kwargs['gt_labels']  # [tensor([ 1,  2,  4,  5,  6,  8,  9, 10, 14, 17, 18, 19, 20, 23, 29],]
+        #gt_masks = kwargs['gt_masks']  # [(15,h,w)]
 
-        with torch.no_grad():
-            print("Skip backbone grads!")
-            x = self.extract_feat(img)
+        # emb_map = self.embed_seg_masks(gt_semantic_seg)
+
+        # with torch.no_grad():
+        #     print("Skip backbone grads!")
+        x = self.extract_feat(img)
 
         losses = dict()
 
-        loss_decode = self._decode_head_forward_train(x, img_metas, emb_map,
+        loss_decode = self._decode_head_forward_train(x, img_metas,
+                                                      gt_semantic_seg,
                                                       **kwargs)
         losses.update(loss_decode)
 
