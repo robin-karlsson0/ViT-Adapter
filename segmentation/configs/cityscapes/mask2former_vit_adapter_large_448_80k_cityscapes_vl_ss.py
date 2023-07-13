@@ -5,13 +5,13 @@
 
 _base_ = [
     '../_base_/models/mask2former_vit_cityscapes_vl.py',
-    '../_base_/../_base_/datasets/cityscapes_896x896_vl.py',
+    '../_base_/../_base_/datasets/cityscapes_448x448_vl.py',
     '../_base_/default_runtime.py', '../_base_/schedules/schedule_80k.py'
 ]
 # ''
-crop_size = (512, 512)
+crop_size = (448, 448)
 # pretrained = 'https://conversationhub.blob.core.windows.net/beit-share-public/beit/beit_large_patch16_224_pt22k_ft22k.pth'
-pretrained = 'pretrain/ViT14_clip_backbone.pth'
+pretrained = 'pretrain/ViT-L_14_336px_clip_backbone.pth'
 # load_from = 'https://github.com/czczup/ViT-Adapter/releases/download/v0.2.3/mask2former_beit_adapter_large_896_80k_mapillary.zip'
 # load_from = 'pretrained/mask2former_beit_adapter_large_896_80k_mapillary.pth.tar'
 # load_from = 'pretrain/ViT14_clip_backbone.pth'
@@ -20,7 +20,7 @@ model = dict(
     backbone=dict(
         type='ViTAdapterVL',
         # ViT parameters
-        img_size=(512, 512),
+        img_size=(448, 448),
         patch_size=14,
         patch_bias=False,
         in_channels=3,
@@ -43,8 +43,9 @@ model = dict(
         interpolate_mode='bicubic',
         num_fcs=2,
         norm_eval=False,
+        freeze_backbone=True,
         # ViT-Adapter parameters
-        pretrain_size=336,
+        pretrain_size=448,  #336
         conv_inplane=64,
         n_points=4,
         deform_num_heads=16,
@@ -52,15 +53,12 @@ model = dict(
         deform_ratio=0.5,
         with_cp=True,  # set with_cp=True to save memory
         interaction_indexes=[[0, 5], [6, 11], [12, 17], [18, 23]],
-        # _delete_=True,
-        # depth=24,
-        # window_attn=[False] * 24,
-        # window_size=[None] * 24,
     ),
     decode_head=dict(
         in_channels=[1024, 1024, 1024, 1024],
         feat_channels=1024,
         out_channels=1024,
+        emb_dim=768,  #  768s
         num_queries=100,
         pixel_decoder=dict(
             type='MSDeformAttnPixelDecoder',

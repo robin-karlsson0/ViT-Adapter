@@ -111,7 +111,9 @@ def parse_args():
                         default=1,
                         type=int,
                         help='number of process')
-    parser.add_argument('--register_path', help='Path to txt2idx_star dict')
+    parser.add_argument('--register_path',
+                        default='txt2idx_star.pkl',
+                        help='Path to txt2idx_star dict')
     args = parser.parse_args()
     return args
 

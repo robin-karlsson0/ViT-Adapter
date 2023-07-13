@@ -10,7 +10,7 @@ def parse_args():
                         default='RN50',
                         choices=[
                             'RN50', 'RN101', 'RN50x4', 'RN50x16', 'RN50x64',
-                            'ViT32', 'ViT16', 'ViT14', 'ViT-L/14@336px'
+                            'ViT32', 'ViT16', 'ViT14', 'ViT-L_14_336px'
                         ],
                         help='clip model name')
     parser.add_argument(
@@ -35,7 +35,7 @@ if __name__ == '__main__':
         'ViT32': 'ViT-B/32',
         'ViT16': 'ViT-B/16',
         'ViT14': 'ViT-L/14',
-        'ViT-L/14@336px': 'ViT-L/14@336px'
+        'ViT-L_14_336px': 'ViT-L/14@336px'
     }
     clip_model, preprocess = clip.load(name_mapping[args.model], device='cpu')
     state_dict = clip_model.state_dict()

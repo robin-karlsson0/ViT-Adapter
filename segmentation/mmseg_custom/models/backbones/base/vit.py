@@ -193,7 +193,8 @@ class VisionTransformerVL(BaseModule):
                  norm_eval=False,
                  with_cp=False,
                  pretrained=None,
-                 init_cfg=None):
+                 init_cfg=None,
+                 freeze_backbone=True):
         super(VisionTransformerVL, self).__init__(init_cfg=init_cfg)
 
         if isinstance(img_size, int):
@@ -301,6 +302,10 @@ class VisionTransformerVL(BaseModule):
             raise TypeError('return_qkv must be type of bool, list or tuple')
 
         self.skip_last_attn = skip_last_attn
+
+        if freeze_backbone:
+            for p in self.parameters():
+                p.requires_grad = False
 
     @property
     def norm0(self):
