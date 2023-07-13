@@ -37,8 +37,8 @@ model = dict(
         norm_cfg=dict(type='LN', eps=1e-6),
         act_cfg=dict(type='GELU'),
         patch_norm=False,
-        pre_norm=True,
-        final_norm=True,
+        pre_norm=False,  # True
+        final_norm=False,  # True
         return_qkv=True,
         interpolate_mode='bicubic',
         num_fcs=2,

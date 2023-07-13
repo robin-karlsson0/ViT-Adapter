@@ -253,7 +253,7 @@ class ViTAdapterVL(VisionTransformerVL):
             c1, c2, c3, c4 = c1 + x1, c2 + x2, c3 + x3, c4 + x4
 
         # Final Norm
-        f1 = self.f_norm2(c1)
+        f1 = self.f_norm1(c1)
         f2 = self.f_norm2(c2)
         f3 = self.f_norm3(c3)
         f4 = self.f_norm4(c4)
