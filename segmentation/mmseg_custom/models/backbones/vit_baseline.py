@@ -9,13 +9,14 @@ from mmseg.models.builder import BACKBONES
 from mmseg.utils import get_root_logger
 from timm.models.layers import trunc_normal_
 
-from .base.vit import TIMMVisionTransformer
+from .base.timm_vit import TIMMVisionTransformer
 
 _logger = logging.getLogger(__name__)
 
 
 @BACKBONES.register_module()
 class ViTBaseline(TIMMVisionTransformer):
+
     def __init__(self, pretrain_size=224, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
@@ -23,7 +24,9 @@ class ViTBaseline(TIMMVisionTransformer):
         self.cls_token = None
         self.num_block = len(self.blocks)
         self.pretrain_size = (pretrain_size, pretrain_size)
-        self.flags = [i for i in range(-1, self.num_block, self.num_block // 4)][1:]
+        self.flags = [
+            i for i in range(-1, self.num_block, self.num_block // 4)
+        ][1:]
 
         embed_dim = self.embed_dim
         self.norm1 = self.norm_layer(embed_dim)
@@ -49,7 +52,11 @@ class ViTBaseline(TIMMVisionTransformer):
     def init_weights(self, pretrained=None):
         if isinstance(pretrained, str):
             logger = get_root_logger()
-            load_checkpoint(self, pretrained, map_location='cpu', strict=False, logger=logger)
+            load_checkpoint(self,
+                            pretrained,
+                            map_location='cpu',
+                            strict=False,
+                            logger=logger)
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -67,8 +74,9 @@ class ViTBaseline(TIMMVisionTransformer):
                 m.bias.data.zero_()
 
     def _get_pos_embed(self, pos_embed, H, W):
-        pos_embed = pos_embed.reshape(
-            1, self.pretrain_size[0] // 16, self.pretrain_size[1] // 16, -1).permute(0, 3, 1, 2)
+        pos_embed = pos_embed.reshape(1, self.pretrain_size[0] // 16,
+                                      self.pretrain_size[1] // 16,
+                                      -1).permute(0, 3, 1, 2)
         pos_embed = F.interpolate(pos_embed, size=(H, W), mode='bicubic', align_corners=False).\
             reshape(1, -1, H * W).permute(0, 2, 1)
         return pos_embed

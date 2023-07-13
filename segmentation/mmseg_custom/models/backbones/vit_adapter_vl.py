@@ -1,6 +1,7 @@
 # Copyright (c) Shanghai AI Lab. All rights reserved.
 import logging
 import math
+from functools import partial
 
 import torch
 import torch.nn as nn
@@ -9,47 +10,107 @@ from mmseg.models.builder import BACKBONES
 from ops.modules import MSDeformAttn
 from timm.models.layers import trunc_normal_
 from torch.nn.init import normal_
+from mmcv.cnn import build_norm_layer
 
-from .base.timm_vit import TIMMVisionTransformer
+from .base.vit import VisionTransformerVL
 from .adapter_modules import SpatialPriorModule, InteractionBlock, deform_inputs
 
 _logger = logging.getLogger(__name__)
 
 
 @BACKBONES.register_module()
-class ViTAdapter(TIMMVisionTransformer):
+class ViTAdapterVL(VisionTransformerVL):
+    '''
+    Changes
+        self.blocks --> self.layers
+    '''
 
-    def __init__(self,
-                 pretrain_size=224,
-                 num_heads=12,
-                 conv_inplane=64,
-                 n_points=4,
-                 deform_num_heads=6,
-                 init_values=0.,
-                 interaction_indexes=None,
-                 with_cffn=True,
-                 cffn_ratio=0.25,
-                 deform_ratio=1.0,
-                 add_vit_feature=True,
-                 pretrained=None,
-                 use_extra_extractor=True,
-                 with_cp=False,
-                 *args,
-                 **kwargs):
+    def __init__(
+            self,
+            # ViT parameters
+            img_size=(512, 512),
+            patch_size=16,
+            patch_bias=False,
+            in_channels=3,
+            embed_dims=1024,
+            num_layers=24,
+            num_heads=16,
+            mlp_ratio=4,
+            out_indices=-1,
+            qkv_bias=True,
+            drop_rate=0.,
+            drop_path_rate=0.4,
+            with_cls_token=True,
+            output_cls_token=False,
+            norm_cfg=dict(type='LN', eps=1e-6),
+            act_cfg=dict(type='GELU'),
+            patch_norm=False,
+            pre_norm=True,
+            final_norm=True,
+            return_qkv=True,
+            interpolate_mode='bicubic',
+            num_fcs=2,
+            norm_eval=False,
+            pretrained=None,
+            # ViT-Adapter paramters
+            pretrain_size=336,
+            conv_inplane=64,
+            n_points=4,
+            deform_num_heads=16,
+            cffn_ratio=0.25,
+            deform_ratio=0.5,
+            with_cp=True,  # set with_cp=True to save memory
+            interaction_indexes=[[0, 5], [6, 11], [12, 17], [18, 23]],
+            add_vit_feature=True,
+            init_values=0.,
+            with_cffn=True,
+            use_extra_extractor=True,
+            *args,
+            **kwargs):
 
-        super().__init__(num_heads=num_heads,
-                         pretrained=pretrained,
-                         with_cp=with_cp,
-                         *args,
-                         **kwargs)
+        super().__init__(
+            img_size=img_size,
+            patch_size=patch_size,
+            patch_bias=patch_bias,
+            in_channels=in_channels,
+            embed_dims=embed_dims,
+            num_layers=num_layers,
+            num_heads=num_heads,
+            mlp_ratio=mlp_ratio,
+            out_indices=out_indices,
+            qkv_bias=qkv_bias,
+            drop_rate=drop_rate,
+            drop_path_rate=drop_path_rate,
+            with_cls_token=with_cls_token,
+            output_cls_token=output_cls_token,
+            norm_cfg=norm_cfg,
+            act_cfg=act_cfg,
+            patch_norm=patch_norm,
+            pre_norm=pre_norm,
+            final_norm=final_norm,
+            return_qkv=return_qkv,
+            interpolate_mode=interpolate_mode,
+            num_fcs=num_fcs,
+            norm_eval=norm_eval,
+            with_cp=with_cp,
+            pretrained=pretrained,
+            init_cfg=None,
+            #*args,
+            #**kwargs,
+        )
 
         # self.num_classes = 80
         self.cls_token = None
-        self.num_block = len(self.blocks)
+        self.num_block = len(self.layers)
         self.pretrain_size = (pretrain_size, pretrain_size)
         self.interaction_indexes = interaction_indexes
         self.add_vit_feature = add_vit_feature
+        self.embed_dim = embed_dims
         embed_dim = self.embed_dim
+        self.drop_path_rate = drop_path_rate
+        # _, norm_layer = build_norm_layer(norm_cfg, embed_dims, postfix=1)
+        # self.norm_layer = norm_layer
+        self.norm_layer = partial(nn.LayerNorm, eps=1e-6)
 
         self.level_embed = nn.Parameter(torch.zeros(3, embed_dim))
         self.spm = SpatialPriorModule(inplanes=conv_inplane,
@@ -134,7 +195,7 @@ class ViTAdapter(TIMMVisionTransformer):
         outs = list()
         for i, layer in enumerate(self.interactions):
             indexes = self.interaction_indexes[i]
-            x, c = layer(x, c, self.blocks[indexes[0]:indexes[-1] + 1],
+            x, c = layer(x, c, self.layers[indexes[0]:indexes[-1] + 1],
                          deform_inputs1, deform_inputs2, H, W)
             outs.append(x.transpose(1, 2).view(bs, dim, H, W).contiguous())
 

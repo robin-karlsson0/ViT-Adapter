@@ -584,7 +584,7 @@ class Mask2FormerHeadVL(BaseDecodeHead):
         ori_h, ori_w, _ = img_metas[0]['ori_shape']
 
         # semantic inference
-        cls_score = F.softmax(cls_score, dim=-1)[..., :-1]
+        # cls_score = F.softmax(cls_score, dim=-1)[..., :-1]
         mask_pred = mask_pred.sigmoid()
         seg_mask = torch.einsum('bqc,bqhw->bchw', cls_score, mask_pred)
         return seg_mask

@@ -21,18 +21,53 @@ Install [MMSegmentation v0.20.2](https://github.com/open-mmlab/mmsegmentation/tr
 
 ```
 # recommended environment: torch1.9 + cuda11.1
-pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
-pip install mmcv-full==1.4.2 -f https://download.openmmlab.com/mmcv/dist/cu111/torch1.9.0/index.html
+SKIP! See instructions bellow
+    pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
+SKIP! See instructions bellow
+    pip install mmcv-full==1.4.2 -f https://download.openmmlab.com/mmcv/dist/cu111/torch1.9.0/index.html
 pip install timm==0.4.12
 pip install mmdet==2.22.0 # for Mask2Former
 pip install mmsegmentation==0.20.2
+pip install ninja
 ln -s ../detection/ops ./
 cd ops & sh make.sh # compile deformable attention
+```
+
+Install PyTorch with support CUDA version
+```
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu11x
+    where x = {3|8}
+        3: server
+```
+
+Build MMCV to support latest PyTorch and CUDA versions
+
+NO! Just follow original version instructions
+```
+git clone https://github.com/open-mmlab/mmcv.git
+Modify version: mmcv/mmcv/version.py: __version__ = '1.5.0' --> '1.4.2'
+Follow instructions: https://mmcv.readthedocs.io/en/latest/get_started/build.html
+```
+
+Deformable attention import problem
+```
+NO! Build and run without modifications by using ninja
+In ms_deform_attn_func.py
+Modify as
+# import MultiScaleDeformableAttention as MSDA
+from mmcv.ops.multi_scale_deform_attn import ext_module as MSDA  # <-- (!)
+
+Ref: https://github.com/czczup/ViT-Adapter/issues/46
 ```
 
 Universal VL embedding segmentation
 ```
 export PYTHONPATH=.
+
+# Install MMEngine (using pip, not mim)
+pip install mmengine
+
+pip install scipy
 
 # Install CLIP
 pip install ftfy regex tqdm
@@ -42,12 +77,12 @@ pip install git+https://github.com/openai/CLIP.git
 TODO
 
 # Convert dataset semantic masks --> VL index masks
-python tools/convert_datasets/cityscapes_vl.py
+python tools/convert_datasets/cityscapes_vl.py data/cityscapes
 --> annotation.npz
 --> text2idx_star.pkl
 
 # Pregenerate text embeddings
-python tools/gen_idx_star2emb.py
+python tools/gen_idx_star2emb.py ./txt2_idx_star.pkl ./
 --> idx_star2emb.pkl
 
 # Train model

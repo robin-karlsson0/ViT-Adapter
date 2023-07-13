@@ -17,6 +17,7 @@ class EncoderDecoderMask2Former(BaseSegmentor):
     Note that auxiliary_head is only used for deep supervision during training,
     which could be dumped during inference.
     """
+
     def __init__(self,
                  backbone,
                  decode_head,
@@ -72,11 +73,10 @@ class EncoderDecoderMask2Former(BaseSegmentor):
         map of the same size as input."""
         x = self.extract_feat(img)
         out = self._decode_head_forward_test(x, img_metas)
-        out = resize(
-            input=out,
-            size=img.shape[2:],
-            mode='bilinear',
-            align_corners=self.align_corners)
+        out = resize(input=out,
+                     size=img.shape[2:],
+                     mode='bilinear',
+                     align_corners=self.align_corners)
         return out
 
     def _decode_head_forward_train(self, x, img_metas, gt_semantic_seg,
@@ -190,12 +190,11 @@ class EncoderDecoderMask2Former(BaseSegmentor):
                 count_mat.cpu().detach().numpy()).to(device=img.device)
         preds = preds / count_mat
         if rescale:
-            preds = resize(
-                preds,
-                size=img_meta[0]['ori_shape'][:2],
-                mode='bilinear',
-                align_corners=self.align_corners,
-                warning=False)
+            preds = resize(preds,
+                           size=img_meta[0]['ori_shape'][:2],
+                           mode='bilinear',
+                           align_corners=self.align_corners,
+                           warning=False)
         return preds
 
     def whole_inference(self, img, img_meta, rescale):
@@ -208,12 +207,11 @@ class EncoderDecoderMask2Former(BaseSegmentor):
                 size = img.shape[2:]
             else:
                 size = img_meta[0]['ori_shape'][:2]
-            seg_logit = resize(
-                seg_logit,
-                size=size,
-                mode='bilinear',
-                align_corners=self.align_corners,
-                warning=False)
+            seg_logit = resize(seg_logit,
+                               size=size,
+                               mode='bilinear',
+                               align_corners=self.align_corners,
+                               warning=False)
 
         return seg_logit
 
@@ -246,9 +244,9 @@ class EncoderDecoderMask2Former(BaseSegmentor):
             flip_direction = img_meta[0]['flip_direction']
             assert flip_direction in ['horizontal', 'vertical']
             if flip_direction == 'horizontal':
-                output = output.flip(dims=(3,))
+                output = output.flip(dims=(3, ))
             elif flip_direction == 'vertical':
-                output = output.flip(dims=(2,))
+                output = output.flip(dims=(2, ))
 
         return output
 
