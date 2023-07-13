@@ -1,6 +1,10 @@
 _base_ = './cityscapes_vl.py'
-img_norm_cfg = dict(mean=[123.675, 116.28, 103.53],
-                    std=[58.395, 57.12, 57.375],
+# img_norm_cfg = dict(mean=[123.675, 116.28, 103.53],
+#                     std=[58.395, 57.12, 57.375],
+#                     to_rgb=True)
+# CLIP img encoder
+img_norm_cfg = dict(mean=[122.7709383, 116.7460125, 104.09373615],
+                    std=[68.5005327, 66.6321579, 70.32316305],
                     to_rgb=True)
 crop_size = (448, 448)
 train_pipeline = [

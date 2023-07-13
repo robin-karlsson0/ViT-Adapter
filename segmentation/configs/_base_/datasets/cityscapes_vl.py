@@ -2,8 +2,12 @@
 # dataset_type = 'CityscapesDataset'
 dataset_type = 'CityscapesVLDataset'
 data_root = 'data/cityscapes/'
-img_norm_cfg = dict(mean=[123.675, 116.28, 103.53],
-                    std=[58.395, 57.12, 57.375],
+# img_norm_cfg = dict(mean=[123.675, 116.28, 103.53],
+#                     std=[58.395, 57.12, 57.375],
+#                     to_rgb=True)
+# CLIP img encoder
+img_norm_cfg = dict(mean=[122.7709383, 116.7460125, 104.09373615],
+                    std=[68.5005327, 66.6321579, 70.32316305],
                     to_rgb=True)
 crop_size = (512, 1024)
 train_pipeline = [
@@ -22,7 +26,8 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=(2048, 1024),
+        img_scale=(1024, 512),
+        # img_scale=(2048, 1024),
         # img_ratios=[0.5, 0.75, 1.0, 1.25, 1.5, 1.75],
         flip=False,
         transforms=[
