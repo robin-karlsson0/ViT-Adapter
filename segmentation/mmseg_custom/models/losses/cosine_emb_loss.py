@@ -39,10 +39,12 @@ class CosineEmbLoss(nn.Module):
             y_b = y[idx]
 
             # Remove non-labeled elements in x1, x2, y
+            # NOTE: Apply .view(-1) in case single label results in scalar.
+            #       Scalars don't work with pytorch 1.9.x, but OK with 2.x ?
             nonzero_idxs = torch.nonzero(torch.all(x2_b != 0, dim=1)).squeeze()
             x1_b = x1_b[nonzero_idxs]
             x2_b = x2_b[nonzero_idxs]
-            y_b = y_b[nonzero_idxs]
+            y_b = y_b[nonzero_idxs].view(-1)
 
             loss_b = self.loss_weight * self.criterion(x1_b, x2_b, y_b)
             loss.append(loss_b)
