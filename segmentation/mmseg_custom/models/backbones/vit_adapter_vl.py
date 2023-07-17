@@ -185,27 +185,68 @@ class ViTAdapterVL(VisionTransformerVL):
         return c2, c3, c4
 
     def forward(self, x):
+        '''
+        (1) Generate intermediate ViT feature maps [x] (B, D, h, w) and updated
+            multi-scale row matrix 'c'
+
+        img --> patch_emb + pos_emb --> interactions --> [x], c
+            [x]: Intermediate ViT feature maps (B, D, h, W)
+            c: Updated spatial feature maps
+
+        (2) Add intermediate features with spatial features
+
+        [x], c --> [x], [c] --> add([x], [c]) --> [c']
+      
+        N: #input features (1024).
+        M: #multi-scale features by SPM module (4116).
+
+        Args:
+            x: Normalized image tensor (B, 3, H, W).
+
+        Returns:
+            
+        '''
+        # Extract multi-scale information such as feature map sizes
         deform_inputs1, deform_inputs2 = deform_inputs(x)
 
         # SPM forward
+        # 'c' (B, M, D) is the concatenated multi-scale feat. maps as row mat.
         c1, c2, c3, c4 = self.spm(x)
         c2, c3, c4 = self._add_level_embed(c2, c3, c4)
         c = torch.cat([c2, c3, c4], dim=1)
 
         # Patch Embedding forward
+        # x: img (B, 3, H, W) --> row matrix (B, N, D)
         H, W = x.shape[2], x.shape[3]  # Should be *// 16 size (as SPM conv)
         H = H // 16
         W = W // 16
         x, out_size = self.patch_embed(x)
         H_patch, W_patch = out_size  # Should be *// 14 size (as patch size)
 
+        # Add positional embeddings after resizing pretrained ViT model's
+        # embedding map
         bs, n, dim = x.shape
         pos_embed = self._get_pos_embed(self.pos_embed[:, 1:], H_patch,
                                         W_patch)
         x = self.pos_drop(x + pos_embed)
 
         # Interaction
-        # Produces outs: List of (B, D, H_patch, W_patch) feature maps
+        #
+        # Recurrently do
+        #     1) Spatial feature injection --> backbone
+        #            c --> add(x, c) --> x'
+        #     2) Backbone feed-forward
+        #            x' --> f(x') --> x*
+        #     3) Backbone feature extraction
+        #            x* --> g(x*, c) --> c*
+        #
+        # NOTE: #features different, #dim same
+        #     x: (B, N, D)
+        #     c: (B, M, D)
+        #
+        # The interaction process updates the 'c' row matrix and extracts
+        # intermediate 'x' ViT row matrices reshaped into spatial maps
+        # (B, D, h, w) with (h, w) corresponding to #patches = 32
         outs = list()
         for i, layer in enumerate(self.interactions):
             indexes = self.interaction_indexes[i]
@@ -214,7 +255,8 @@ class ViTAdapterVL(VisionTransformerVL):
             outs.append(
                 x.transpose(1, 2).view(bs, dim, H_patch, W_patch).contiguous())
 
-        # Split & Reshape
+        # Split and reshape concatenated SPM row matrix (B, M, D)
+        # --> feature maps [(B, D, h, w)]
         c2 = c[:, 0:c2.size(1), :]
         c3 = c[:, c2.size(1):c2.size(1) + c3.size(1), :]
         c4 = c[:, c2.size(1) + c3.size(1):, :]
@@ -224,6 +266,8 @@ class ViTAdapterVL(VisionTransformerVL):
         c4 = c4.transpose(1, 2).view(bs, dim, H // 2, W // 2).contiguous()
         c1 = self.up(c2) + c1
 
+        # Add upscaled intermediate ViT spatial maps (B, D, h, W) to the final
+        # multi-scale spatial feature maps 'c'
         if self.add_vit_feature:
             x1, x2, x3, x4 = outs
             x1 = F.interpolate(
@@ -257,4 +301,6 @@ class ViTAdapterVL(VisionTransformerVL):
         f2 = self.f_norm2(c2)
         f3 = self.f_norm3(c3)
         f4 = self.f_norm4(c4)
+
+        # Final multi-scale ViT-Adapter feature maps
         return [f1, f2, f3, f4]

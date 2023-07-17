@@ -269,7 +269,9 @@ class Resize(object):
                 #                         results['scale'],
                 #                         interpolation='nearest')
             else:
-                raise NotImplementedError()
+                zoom_factor = (results['scale_factor'][1],
+                               results['scale_factor'][0])
+                gt_seg = zoom(results[key], zoom_factor, order=0)
                 # gt_seg = mmcv.imresize(results[key],
                 #                        results['scale'],
                 #                        interpolation='nearest')

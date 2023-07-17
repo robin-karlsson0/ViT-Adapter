@@ -34,6 +34,13 @@ def get_reference_points(spatial_shapes, device):
 
 
 def deform_inputs(x):
+    '''Extract multi-scale information such as feature map sizes.
+
+    Returns:
+        reference_points: (1, D, 1, 2)
+        spatial_shapes: Multi-scale feature map sizes (56, 56), (28, 28) etc.
+        level_start_index: Concatenated tensor MS feature split indices.
+    '''
     bs, c, h, w = x.shape
     spatial_shapes = torch.as_tensor([(h // 8, w // 8), (h // 16, w // 16),
                                       (h // 32, w // 32)],

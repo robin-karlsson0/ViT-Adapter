@@ -2,15 +2,16 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from mmseg.core import add_prefix
+from mmseg.ops import resize
 from mmseg.models import builder
 from mmseg.models.builder import SEGMENTORS
 from mmseg.models.segmentors.base import BaseSegmentor
-from mmseg.ops import resize
 
 
 @SEGMENTORS.register_module()
-class EncoderDecoderMask2Former(BaseSegmentor):
+class EncoderDecoderVL(BaseSegmentor):
     """Encoder Decoder segmentors.
 
     EncoderDecoder typically consists of backbone, decode_head, auxiliary_head.
@@ -27,7 +28,7 @@ class EncoderDecoderMask2Former(BaseSegmentor):
                  test_cfg=None,
                  pretrained=None,
                  init_cfg=None):
-        super(EncoderDecoderMask2Former, self).__init__(init_cfg)
+        super(EncoderDecoderVL, self).__init__(init_cfg)
         if pretrained is not None:
             assert backbone.get('pretrained') is None, \
                 'both backbone and segmentor set pretrained weight'
@@ -35,8 +36,6 @@ class EncoderDecoderMask2Former(BaseSegmentor):
         self.backbone = builder.build_backbone(backbone)
         if neck is not None:
             self.neck = builder.build_neck(neck)
-        decode_head.update(train_cfg=train_cfg)
-        decode_head.update(test_cfg=test_cfg)
         self._init_decode_head(decode_head)
         self._init_auxiliary_head(auxiliary_head)
 
@@ -50,6 +49,13 @@ class EncoderDecoderMask2Former(BaseSegmentor):
         self.decode_head = builder.build_head(decode_head)
         self.align_corners = self.decode_head.align_corners
         self.num_classes = self.decode_head.num_classes
+        # To handle FPN decode_head special case
+        if hasattr(self.decode_head, 'out_channels'):
+            self.out_channels = self.decode_head.out_channels
+        elif hasattr(self.decode_head, 'channels'):
+            self.out_channels = self.decode_head.channels
+        else:
+            raise Exception('Undefined decode_head output dimension')
 
     def _init_auxiliary_head(self, auxiliary_head):
         """Initialize ``auxiliary_head``"""
@@ -73,24 +79,16 @@ class EncoderDecoderMask2Former(BaseSegmentor):
         map of the same size as input."""
         x = self.extract_feat(img)
         out = self._decode_head_forward_test(x, img_metas)
-        out = resize(input=out,
-                     size=img.shape[2:],
-                     mode='bilinear',
-                     align_corners=self.align_corners)
+        out = resize(input=out, size=img.shape[2:], mode='nearest')
         return out
 
-    def _decode_head_forward_train(self, x, img_metas, gt_semantic_seg,
-                                   **kwargs):
+    def _decode_head_forward_train(self, x, img_metas, gt_semantic_seg):
         """Run forward function and calculate loss for decode head in
-        training.
-
-        Args:
-            x: Multi-scale feature maps ((B, D, 112, 112), (..., 56, 56), ...).
-            gt_semantic_seg: Label index maps (B, 1, H, W).
-        """
+        training."""
         losses = dict()
         loss_decode = self.decode_head.forward_train(x, img_metas,
-                                                     gt_semantic_seg, **kwargs)
+                                                     gt_semantic_seg,
+                                                     self.train_cfg)
 
         losses.update(add_prefix(loss_decode, 'decode'))
         return losses
@@ -98,8 +96,8 @@ class EncoderDecoderMask2Former(BaseSegmentor):
     def _decode_head_forward_test(self, x, img_metas):
         """Run forward function and calculate loss for decode head in
         inference."""
-        seg_logits = self.decode_head.forward_test(x, img_metas, self.test_cfg)
-        return seg_logits
+        pred_embs = self.decode_head.forward_test(x, img_metas, self.test_cfg)
+        return pred_embs
 
     def _auxiliary_head_forward_train(self, x, img_metas, gt_semantic_seg):
         """Run forward function and calculate loss for auxiliary head in
@@ -124,7 +122,7 @@ class EncoderDecoderMask2Former(BaseSegmentor):
 
         return seg_logit
 
-    def forward_train(self, img, img_metas, gt_semantic_seg, **kwargs):
+    def forward_train(self, img, img_metas, gt_semantic_seg):
         """Forward function for training.
 
         Args:
@@ -146,8 +144,7 @@ class EncoderDecoderMask2Former(BaseSegmentor):
         losses = dict()
 
         loss_decode = self._decode_head_forward_train(x, img_metas,
-                                                      gt_semantic_seg,
-                                                      **kwargs)
+                                                      gt_semantic_seg)
         losses.update(loss_decode)
 
         if self.with_auxiliary_head:
@@ -168,10 +165,10 @@ class EncoderDecoderMask2Former(BaseSegmentor):
         h_stride, w_stride = self.test_cfg.stride
         h_crop, w_crop = self.test_cfg.crop_size
         batch_size, _, h_img, w_img = img.size()
-        num_classes = self.num_classes
+        out_channels = self.out_channels
         h_grids = max(h_img - h_crop + h_stride - 1, 0) // h_stride + 1
         w_grids = max(w_img - w_crop + w_stride - 1, 0) // w_stride + 1
-        preds = img.new_zeros((batch_size, num_classes, h_img, w_img))
+        preds = img.new_zeros((batch_size, out_channels, h_img, w_img))
         count_mat = img.new_zeros((batch_size, 1, h_img, w_img))
         for h_idx in range(h_grids):
             for w_idx in range(w_grids):
@@ -195,6 +192,9 @@ class EncoderDecoderMask2Former(BaseSegmentor):
                 count_mat.cpu().detach().numpy()).to(device=img.device)
         preds = preds / count_mat
         if rescale:
+            # remove padding area
+            resize_shape = img_meta[0]['img_shape'][:2]
+            preds = preds[:, :, :resize_shape[0], :resize_shape[1]]
             preds = resize(preds,
                            size=img_meta[0]['ori_shape'][:2],
                            mode='bilinear',
@@ -205,20 +205,23 @@ class EncoderDecoderMask2Former(BaseSegmentor):
     def whole_inference(self, img, img_meta, rescale):
         """Inference with full image."""
 
-        seg_logit = self.encode_decode(img, img_meta)
+        pred_embs = self.encode_decode(img, img_meta)
         if rescale:
             # support dynamic shape for onnx
             if torch.onnx.is_in_onnx_export():
                 size = img.shape[2:]
             else:
+                # remove padding area
+                resize_shape = img_meta[0]['img_shape'][:2]
+                pred_embs = pred_embs[:, :, :resize_shape[0], :resize_shape[1]]
                 size = img_meta[0]['ori_shape'][:2]
-            seg_logit = resize(seg_logit,
+            pred_embs = resize(pred_embs,
                                size=size,
                                mode='bilinear',
                                align_corners=self.align_corners,
                                warning=False)
 
-        return seg_logit
+        return pred_embs
 
     def inference(self, img, img_meta, rescale):
         """Inference with slide/whole style.
@@ -240,10 +243,13 @@ class EncoderDecoderMask2Former(BaseSegmentor):
         ori_shape = img_meta[0]['ori_shape']
         assert all(_['ori_shape'] == ori_shape for _ in img_meta)
         if self.test_cfg.mode == 'slide':
-            seg_logit = self.slide_inference(img, img_meta, rescale)
+            output = self.slide_inference(img, img_meta, rescale)
         else:
-            seg_logit = self.whole_inference(img, img_meta, rescale)
-        output = F.softmax(seg_logit, dim=1)
+            output = self.whole_inference(img, img_meta, rescale)
+        # if self.out_channels == 1:
+        #     output = F.sigmoid(seg_logit)
+        # else:
+        #     output = F.softmax(seg_logit, dim=1)
         flip = img_meta[0]['flip']
         if flip:
             flip_direction = img_meta[0]['flip_direction']
@@ -255,18 +261,31 @@ class EncoderDecoderMask2Former(BaseSegmentor):
 
         return output
 
-    def simple_test(self, img, img_meta, rescale=True):
+    def simple_test(self, img, img_meta, rescale=False):  # True
         """Simple test with single image."""
-        seg_logit = self.inference(img, img_meta, rescale)
-        seg_pred = seg_logit.argmax(dim=1)
+        pred_embs = self.inference(img, img_meta, rescale)
+        # if self.out_channels == 1:
+        #     seg_pred = (seg_logit
+        #                 > self.decode_head.threshold).to(seg_logit).squeeze(1)
+        # else:
+        #     seg_pred = seg_logit.argmax(dim=1)
         if torch.onnx.is_in_onnx_export():
             # our inference backend only support 4D output
-            seg_pred = seg_pred.unsqueeze(0)
-            return seg_pred
-        seg_pred = seg_pred.cpu().numpy()
+            pred_embs = pred_embs.unsqueeze(0)
+            return pred_embs
+        pred_embs = pred_embs.cpu().numpy()
         # unravel batch dim
-        seg_pred = list(seg_pred)
-        return seg_pred
+        pred_embs = list(pred_embs)
+        return pred_embs
+
+    def simple_test_logits(self, img, img_metas, rescale=False):  # True
+        """Test without augmentations.'
+
+        Return numpy seg_map logits.
+        """
+        seg_logit = self.inference(img[0], img_metas[0], rescale)
+        seg_logit = seg_logit.cpu().numpy()
+        return seg_logit
 
     def aug_test(self, imgs, img_metas, rescale=True):
         """Test with augmentations.
@@ -281,8 +300,30 @@ class EncoderDecoderMask2Former(BaseSegmentor):
             cur_seg_logit = self.inference(imgs[i], img_metas[i], rescale)
             seg_logit += cur_seg_logit
         seg_logit /= len(imgs)
-        seg_pred = seg_logit.argmax(dim=1)
+        if self.out_channels == 1:
+            seg_pred = (seg_logit
+                        > self.decode_head.threshold).to(seg_logit).squeeze(1)
+        else:
+            seg_pred = seg_logit.argmax(dim=1)
         seg_pred = seg_pred.cpu().numpy()
         # unravel batch dim
         seg_pred = list(seg_pred)
         return seg_pred
+
+    def aug_test_logits(self, img, img_metas, rescale=True):
+        """Test with augmentations.
+
+        Return seg_map logits. Only rescale=True is supported.
+        """
+        # aug_test rescale all imgs back to ori_shape for now
+        assert rescale
+
+        imgs = img
+        seg_logit = self.inference(imgs[0], img_metas[0], rescale)
+        for i in range(1, len(imgs)):
+            cur_seg_logit = self.inference(imgs[i], img_metas[i], rescale)
+            seg_logit += cur_seg_logit
+
+        seg_logit /= len(imgs)
+        seg_logit = seg_logit.cpu().numpy()
+        return seg_logit

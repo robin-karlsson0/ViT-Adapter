@@ -5,11 +5,11 @@ from .dice_loss import DiceLoss
 from .focal_loss import FocalLoss
 from .match_costs import (ClassificationCost, CrossEntropyLossCost, DiceCost,
                           MaskFocalLossCost, CosEmbCost)
-from .cosine_emb_loss import CosineEmbLoss
+from .cosine_emb_loss import CosineEmbLoss, CosineEmbMaskLoss
 
 __all__ = [
     'cross_entropy', 'binary_cross_entropy', 'mask_cross_entropy',
     'CrossEntropyLoss', 'DiceLoss', 'FocalLoss', 'ClassificationCost',
     'MaskFocalLossCost', 'DiceCost', 'CrossEntropyLossCost', 'CosineEmbLoss',
-    'CosEmbCost'
+    'CosEmbCost', 'CosineEmbMaskLoss'
 ]
