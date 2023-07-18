@@ -54,21 +54,13 @@ model = dict(
         with_cp=True,  # set with_cp=True to save memory
         interaction_indexes=[[0, 5], [6, 11], [12, 17], [18, 23]],
     ),
-    neck=dict(type='FPNVL',
-              in_channels=[1024, 1024, 1024, 1024],
-              out_channels=1024,
-              num_outs=4),
     decode_head=dict(
-        type='FPNHeadVL',
+        type='SimpleHeadVL',
         in_channels=[1024, 1024, 1024, 1024],
-        in_index=[0, 1, 2, 3],
-        feature_strides=[4, 8, 16, 32],
         channels=768,
         output_size=(448, 448),
-        add_feat_maps=False,  # True
         normalize_output=True,
         normalize_target_embs=True,
-        dropout_ratio=0.0,
         norm_cfg=dict(type='SyncBN',
                       requires_grad=True),  # Or dict(type='LN', eps=1e-6), ?
         align_corners=False,
@@ -82,13 +74,10 @@ img_norm_cfg = dict(mean=[123.675, 116.28, 103.53],
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='Resize',
-         img_scale=(448, 448),
-         ratio_range=(1, 1),
-         keep_ratio=False),
-    #dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
+    dict(type='Resize', img_scale=(896, 448), ratio_range=(0.5, 2.0)),
+    dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
     dict(type='RandomFlip', prob=0.0),
-    #dict(type='PhotoMetricDistortion'),
+    dict(type='PhotoMetricDistortion'),
     dict(type='Normalize', **img_norm_cfg),
     dict(
         type='Pad',
@@ -96,34 +85,13 @@ train_pipeline = [
         pad_val=0,
         # seg_pad_val=np.iinfo(np.uint32).max),
         seg_pad_val=4294967295),
-    # dict(type='ToMask'),
-    # dict(type='Embed'),
     dict(type='DefaultFormatBundle'),
     dict(type='Collect', keys=['img', 'gt_semantic_seg']),
-]
-test_pipeline = [
-    dict(type='LoadImageFromFile'),
-    dict(
-        type='MultiScaleFlipAug',
-        img_scale=(448, 448),
-        # img_scale=(2048, 1024),
-        # img_ratios=[0.5, 0.75, 1.0, 1.25, 1.5, 1.75],
-        flip=False,
-        transforms=[
-            dict(type='Resize',
-                 img_scale=(448, 448),
-                 ratio_range=(1, 1),
-                 keep_ratio=False),
-            dict(type='RandomFlip', prob=0.0),
-            dict(type='Normalize', **img_norm_cfg),
-            dict(type='ImageToTensor', keys=['img']),
-            dict(type='Collect', keys=['img']),
-        ])
 ]
 optimizer = dict(
     _delete_=True,
     type='AdamW',
-    lr=2e-4,  # 2e-5
+    lr=2e-5,  # 2e-5
     betas=(0.9, 0.999),
     weight_decay=0.05,
     constructor='LayerDecayOptimizerConstructor',
@@ -136,10 +104,8 @@ lr_config = dict(_delete_=True,
                  power=1.0,
                  min_lr=0.0,
                  by_epoch=False)
-data = dict(samples_per_gpu=1,
-            train=dict(pipeline=train_pipeline),
-            test=dict(pipeline=test_pipeline))
+data = dict(samples_per_gpu=1, train=dict(pipeline=train_pipeline))
 runner = dict(type='IterBasedRunner')
 checkpoint_config = dict(by_epoch=False, interval=1000, max_keep_ckpts=1)
-runner = dict(type='IterBasedRunner', max_iters=4000)
+runner = dict(type='IterBasedRunner')
 evaluation = dict(interval=1000000000000000, metric='mIoU', save_best='mIoU')

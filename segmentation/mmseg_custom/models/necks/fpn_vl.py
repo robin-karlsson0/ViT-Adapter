@@ -119,7 +119,8 @@ class FPNVL(BaseModule):
         self.fpn_convs = nn.ModuleList()
 
         for i in range(self.start_level, self.backbone_end_level):
-            l_conv = ConvModule(
+            # l_conv = ConvModule(
+            l_conv = nn.Identity(
                 in_channels[i],
                 out_channels,
                 1,

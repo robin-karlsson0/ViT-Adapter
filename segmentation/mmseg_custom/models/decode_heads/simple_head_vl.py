@@ -12,22 +12,17 @@ from tools.convert_datasets.txt2idx_star import load_register
 
 
 @HEADS.register_module()
-class FPNHeadVL(BaseDecodeHeadVL):
-    """Panoptic Feature Pyramid Networks.
+class SimpleHeadVL(BaseDecodeHeadVL):
+    """Simple head for vision-language embedding output
 
-    This head is the implementation of `Semantic FPN
-    <https://arxiv.org/abs/1901.02446>`_.
-
-    Args:
-        feature_strides (tuple[int]): The strides for input feature maps.
-            stack_lateral. All strides suppose to be power of 2. The first
-            one is of largest resolution.
+    Takes the largest ViT-Adapter output feature map (B, D, H, W) and
+    transforms it into an embedding map (B, D_emb, H, W) using a single 1x1
+    convolution and resize operation.
+    
     """
 
     def __init__(self,
-                 feature_strides,
                  output_size: tuple,
-                 add_feat_maps: bool = True,
                  normalize_output: bool = True,
                  normalize_target_embs: bool = True,
                  idx_star2emb_path: str = 'idx_star2emb.pkl',
@@ -39,42 +34,13 @@ class FPNHeadVL(BaseDecodeHeadVL):
                            feature map if False.
             normalize_output: Normalize final output embedding map if True.
         '''
-        super(FPNHeadVL, self).__init__(input_transform='multiple_select',
-                                        num_classes=1,
-                                        **kwargs)
-        assert len(feature_strides) == len(self.in_channels)
-        assert min(feature_strides) == feature_strides[0]
-        self.feature_strides = feature_strides
+        super(SimpleHeadVL, self).__init__(input_transform='multiple_select',
+                                           num_classes=1,
+                                           in_index=[0, 1, 2, 3],
+                                           **kwargs)
         self.output_size = output_size
-        self.add_feat_maps = add_feat_maps
         self.normalize_output = normalize_output
         self.normalize_target_embs = normalize_target_embs
-
-        if self.add_feat_maps:
-            self.scale_heads = nn.ModuleList()
-            for i in range(len(feature_strides)):
-                head_length = max(
-                    1,
-                    int(
-                        np.log2(feature_strides[i]) -
-                        np.log2(feature_strides[0])))
-                scale_head = []
-                for k in range(head_length):
-                    scale_head.append(
-                        ConvModule(
-                            self.in_channels[i] if k == 0 else self.channels,
-                            self.channels,
-                            3,
-                            padding=1,
-                            conv_cfg=self.conv_cfg,
-                            norm_cfg=self.norm_cfg,
-                            act_cfg=self.act_cfg))
-                    if feature_strides[i] != feature_strides[0]:
-                        scale_head.append(
-                            Upsample(scale_factor=2,
-                                     mode='bilinear',
-                                     align_corners=self.align_corners))
-                self.scale_heads.append(nn.Sequential(*scale_head))
 
         self.idx_star2emb = load_register(idx_star2emb_path)
         if self.normalize_target_embs:
@@ -84,7 +50,11 @@ class FPNHeadVL(BaseDecodeHeadVL):
                 self.idx_star2emb[key] = emb
         self.ignore_emb_idx = ignore_emb_idx
 
-        self.cls_seg = None  # Remove to avoid unused parameters
+        self.conv_seg = None  # Remove to avoid unused parameters
+
+        self.conv = ConvModule(self.in_channels[0],
+                               self.channels,
+                               kernel_size=1)
 
     def label_idx2emb(self, idx_maps: torch.tensor) -> torch.tensor:
         '''
@@ -145,27 +115,17 @@ class FPNHeadVL(BaseDecodeHeadVL):
 
     def forward(self, inputs):
 
-        x = self._transform_inputs(inputs)
-
-        if self.add_feat_maps:
-            output = self.scale_heads[0](x[0])
-            for i in range(1, len(self.feature_strides)):
-                # non inplace
-                output = output + resize(self.scale_heads[i](x[i]),
-                                         size=output.shape[2:],
-                                         mode='bilinear',
-                                         align_corners=self.align_corners)
-        else:
-            output = x[0]
+        # Reduce dim by 1x1 conv
+        out = self.conv(inputs[0])
 
         # Normalize
         if self.normalize_output:
-            output = F.normalize(output)
+            out = F.normalize(out)
 
         # Upsample
-        output = F.interpolate(output, self.output_size, mode='nearest')
+        out = F.interpolate(out, self.output_size, mode='nearest')
 
-        return output
+        return out
 
     def forward_train(self, inputs, img_metas, gt_semantic_seg, train_cfg):
         """Forward function for training.

@@ -4,6 +4,7 @@ from .mask2former_head_vl import Mask2FormerHeadVL
 from .maskformer_head import MaskFormerHead
 from .fpn_head_vl import FPNHeadVL
 from .decode_head_vl import BaseDecodeHeadVL
+from .simple_head_vl import SimpleHeadVL
 
 __all__ = [
     'MaskFormerHead',
@@ -11,4 +12,5 @@ __all__ = [
     'Mask2FormerHeadVL',
     'FPNHeadVL',
     'BaseDecodeHeadVL',
+    'SimpleHeadVL',
 ]

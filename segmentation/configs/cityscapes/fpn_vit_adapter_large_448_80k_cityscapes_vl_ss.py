@@ -56,16 +56,17 @@ model = dict(
     ),
     neck=dict(type='FPNVL',
               in_channels=[1024, 1024, 1024, 1024],
-              out_channels=768,
-              num_outs=4),
+              out_channels=1024,
+              num_outs=4,
+              norm_cfg=dict(type='SyncBN', requires_grad=True)),
     decode_head=dict(
         type='FPNHeadVL',
-        in_channels=[768, 768, 768, 768],
+        in_channels=[1024, 1024, 1024, 1024],
         in_index=[0, 1, 2, 3],
         feature_strides=[4, 8, 16, 32],
         channels=768,
         output_size=(448, 448),
-        add_feat_maps=True,  # False
+        add_feat_maps=False,  # True
         normalize_output=True,
         normalize_target_embs=True,
         dropout_ratio=0.0,
@@ -115,5 +116,5 @@ lr_config = dict(_delete_=True,
 data = dict(samples_per_gpu=1, train=dict(pipeline=train_pipeline))
 runner = dict(type='IterBasedRunner')
 checkpoint_config = dict(by_epoch=False, interval=1000, max_keep_ckpts=1)
-runner = dict(type='IterBasedRunner', max_iters=4000)
+runner = dict(type='IterBasedRunner')
 evaluation = dict(interval=1000000000000000, metric='mIoU', save_best='mIoU')
