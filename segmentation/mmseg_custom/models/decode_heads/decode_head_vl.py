@@ -68,9 +68,10 @@ class BaseDecodeHeadVL(BaseModule, metaclass=ABCMeta):
                  ignore_index=255,
                  sampler=None,
                  align_corners=False,
-                 init_cfg=dict(type='Normal',
-                               std=0.01,
-                               override=dict(name='conv_seg'))):
+                 init_cfg=dict()):
+        # init_cfg=dict(type='Normal',
+        #               std=0.01,
+        #               override=dict(name='conv_seg'))):
         super(BaseDecodeHeadVL, self).__init__(init_cfg)
         self._init_inputs(in_channels, in_index, input_transform)
         self.channels = channels

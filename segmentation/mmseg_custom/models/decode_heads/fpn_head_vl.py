@@ -50,28 +50,31 @@ class FPNHeadVL(BaseDecodeHeadVL):
         self.normalize_output = normalize_output
         self.normalize_target_embs = normalize_target_embs
 
-        self.scale_heads = nn.ModuleList()
-        for i in range(len(feature_strides)):
-            head_length = max(
-                1,
-                int(np.log2(feature_strides[i]) - np.log2(feature_strides[0])))
-            scale_head = []
-            for k in range(head_length):
-                scale_head.append(
-                    ConvModule(
-                        self.in_channels[i] if k == 0 else self.channels,
-                        self.channels,
-                        3,
-                        padding=1,
-                        conv_cfg=self.conv_cfg,
-                        norm_cfg=self.norm_cfg,
-                        act_cfg=self.act_cfg))
-                if feature_strides[i] != feature_strides[0]:
+        if self.add_feat_maps:
+            self.scale_heads = nn.ModuleList()
+            for i in range(len(feature_strides)):
+                head_length = max(
+                    1,
+                    int(
+                        np.log2(feature_strides[i]) -
+                        np.log2(feature_strides[0])))
+                scale_head = []
+                for k in range(head_length):
                     scale_head.append(
-                        Upsample(scale_factor=2,
-                                 mode='bilinear',
-                                 align_corners=self.align_corners))
-            self.scale_heads.append(nn.Sequential(*scale_head))
+                        ConvModule(
+                            self.in_channels[i] if k == 0 else self.channels,
+                            self.channels,
+                            3,
+                            padding=1,
+                            conv_cfg=self.conv_cfg,
+                            norm_cfg=self.norm_cfg,
+                            act_cfg=self.act_cfg))
+                    if feature_strides[i] != feature_strides[0]:
+                        scale_head.append(
+                            Upsample(scale_factor=2,
+                                     mode='bilinear',
+                                     align_corners=self.align_corners))
+                self.scale_heads.append(nn.Sequential(*scale_head))
 
         self.idx_star2emb = load_register(idx_star2emb_path)
         if self.normalize_target_embs:
@@ -81,7 +84,7 @@ class FPNHeadVL(BaseDecodeHeadVL):
                 self.idx_star2emb[key] = emb
         self.ignore_emb_idx = ignore_emb_idx
 
-        self.cls_seg = None  # Remove to avoid unused parameters
+        self.conv_seg = None  # Remove to avoid unused parameters
 
     def label_idx2emb(self, idx_maps: torch.tensor) -> torch.tensor:
         '''

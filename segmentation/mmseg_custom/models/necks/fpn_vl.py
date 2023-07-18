@@ -118,8 +118,6 @@ class FPNVL(BaseModule):
         self.lateral_convs = nn.ModuleList()
         self.fpn_convs = nn.ModuleList()
 
-        self.conv_seg = None  # fix a bug here (conv_seg is not used)
-
         for i in range(self.start_level, self.backbone_end_level):
             l_conv = ConvModule(
                 in_channels[i],
