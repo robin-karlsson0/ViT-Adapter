@@ -84,7 +84,7 @@ class FPNHeadVL(BaseDecodeHeadVL):
                 self.idx_star2emb[key] = emb
         self.ignore_emb_idx = ignore_emb_idx
 
-        self.cls_seg = None  # Remove to avoid unused parameters
+        self.conv_seg = None  # Remove to avoid unused parameters
 
     def label_idx2emb(self, idx_maps: torch.tensor) -> torch.tensor:
         '''
