@@ -53,6 +53,7 @@ model = dict(
         deform_ratio=0.5,
         with_cp=True,  # set with_cp=True to save memory
         interaction_indexes=[[0, 5], [6, 11], [12, 17], [18, 23]],
+        use_last_feat_map_only=True,
     ),
     decode_head=dict(
         type='SimpleHeadVL',

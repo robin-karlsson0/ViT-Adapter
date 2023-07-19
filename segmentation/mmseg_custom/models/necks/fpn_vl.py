@@ -78,6 +78,7 @@ class FPNVL(BaseModule):
                  norm_cfg=None,
                  act_cfg=None,
                  upsample_cfg=dict(mode='nearest'),
+                 use_last_feat_map_only=False,
                  init_cfg=dict(type='Xavier',
                                layer='Conv2d',
                                distribution='uniform')):
@@ -91,6 +92,7 @@ class FPNVL(BaseModule):
         self.no_norm_on_lateral = no_norm_on_lateral
         self.fp16_enabled = False
         self.upsample_cfg = upsample_cfg.copy()
+        self.use_last_feat_map_only = use_last_feat_map_only
 
         if end_level == -1:
             self.backbone_end_level = self.num_ins
@@ -140,6 +142,11 @@ class FPNVL(BaseModule):
             self.lateral_convs.append(l_conv)
             self.fpn_convs.append(fpn_conv)
 
+        # Remove unused 3x3 output convs if only highest feat map is used
+        if self.use_last_feat_map_only:
+            for idx in range(1, len(self.fpn_convs)):
+                self.fpn_convs[idx] = None
+
         # add extra conv layers (e.g., RetinaNet)
         extra_levels = num_outs - self.backbone_end_level + self.start_level
         if self.add_extra_convs and extra_levels >= 1:
@@ -184,30 +191,38 @@ class FPNVL(BaseModule):
 
         # build outputs
         # part 1: from original levels
-        outs = [
-            self.fpn_convs[i](laterals[i]) for i in range(used_backbone_levels)
-        ]
+        # Remove unused 3x3 output convs if only highest feat map is used
+        if self.use_last_feat_map_only:
+            outs = [self.fpn_convs[0](laterals[0])]
+        else:
+            outs = [
+                self.fpn_convs[i](laterals[i])
+                for i in range(used_backbone_levels)
+            ]
         # part 2: add extra levels
-        if self.num_outs > len(outs):
-            # use max pool to get more levels on top of outputs
-            # (e.g., Faster R-CNN, Mask R-CNN)
-            if not self.add_extra_convs:
-                for i in range(self.num_outs - used_backbone_levels):
-                    outs.append(F.max_pool2d(outs[-1], 1, stride=2))
-            # add conv layers on top of original feature maps (RetinaNet)
-            else:
-                if self.add_extra_convs == 'on_input':
-                    extra_source = inputs[self.backbone_end_level - 1]
-                elif self.add_extra_convs == 'on_lateral':
-                    extra_source = laterals[-1]
-                elif self.add_extra_convs == 'on_output':
-                    extra_source = outs[-1]
-                else:
-                    raise NotImplementedError
-                outs.append(self.fpn_convs[used_backbone_levels](extra_source))
-                for i in range(used_backbone_levels + 1, self.num_outs):
-                    if self.relu_before_extra_convs:
-                        outs.append(self.fpn_convs[i](F.relu(outs[-1])))
-                    else:
-                        outs.append(self.fpn_convs[i](outs[-1]))
+        # if self.num_outs > len(outs):
+        #     # use max pool to get more levels on top of outputs
+        #     # (e.g., Faster R-CNN, Mask R-CNN)
+        #     if not self.add_extra_convs:
+        #         for i in range(self.num_outs - used_backbone_levels):
+        #             outs.append(F.max_pool2d(outs[-1], 1, stride=2))
+        #     # add conv layers on top of original feature maps (RetinaNet)
+        #     else:
+        #         if self.add_extra_convs == 'on_input':
+        #             extra_source = inputs[self.backbone_end_level - 1]
+        #         elif self.add_extra_convs == 'on_lateral':
+        #             extra_source = laterals[-1]
+        #         elif self.add_extra_convs == 'on_output':
+        #             extra_source = outs[-1]
+        #         else:
+        #             raise NotImplementedError
+        #         outs.append(self.fpn_convs[used_backbone_levels](extra_source))
+        #         for i in range(used_backbone_levels + 1, self.num_outs):
+        #             if self.relu_before_extra_convs:
+        #                 outs.append(self.fpn_convs[i](F.relu(outs[-1])))
+        #             else:
+        #                 outs.append(self.fpn_convs[i](outs[-1]))
+
+        # Sum hiearchical feature maps if
+
         return tuple(outs)

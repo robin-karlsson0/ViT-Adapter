@@ -53,13 +53,13 @@ model = dict(
         deform_ratio=0.5,
         with_cp=True,  # set with_cp=True to save memory
         interaction_indexes=[[0, 5], [6, 11], [12, 17], [18, 23]],
-        use_last_feat_map_only=True,
     ),
     neck=dict(type='FPNVL',
               in_channels=[1024, 1024, 1024, 1024],
               out_channels=1024,
               num_outs=4,
-              norm_cfg=dict(type='SyncBN', requires_grad=True)),
+              norm_cfg=dict(type='SyncBN', requires_grad=True),
+              use_last_feat_map_only=True),
     decode_head=dict(
         type='SimpleHeadVL',
         in_channels=[1024, 1024, 1024, 1024],
