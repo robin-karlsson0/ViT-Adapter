@@ -91,9 +91,9 @@ class CosineEmbMaskLoss(nn.Module):
                 label_masks: list) -> torch.tensor:
         """
         Args:
-            pred_embs: 
-            label_embs:
-            label_masks:
+            pred_embs: (B, D, H, W)
+            label_embs: (B, D, H, W)
+            label_masks: [(K_b, H, W)_b]
 
         Returns:
             Avg. loss over all mask avg. cosine embdedding distance losses.

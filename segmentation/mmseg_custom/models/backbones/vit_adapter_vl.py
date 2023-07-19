@@ -66,6 +66,7 @@ class ViTAdapterVL(VisionTransformerVL):
             with_cffn=True,
             use_extra_extractor=True,
             freeze_backbone=True,
+            use_last_feat_map_only=False,
             *args,
             **kwargs):
 
@@ -113,6 +114,7 @@ class ViTAdapterVL(VisionTransformerVL):
         # _, norm_layer = build_norm_layer(norm_cfg, embed_dims, postfix=1)
         # self.norm_layer = norm_layer
         self.norm_layer = partial(nn.LayerNorm, eps=1e-6)
+        self.use_last_feat_map_only = use_last_feat_map_only
 
         self.level_embed = nn.Parameter(torch.zeros(3, embed_dim))
         self.spm = SpatialPriorModule(inplanes=conv_inplane,
@@ -136,9 +138,11 @@ class ViTAdapterVL(VisionTransformerVL):
         ])
         self.up = nn.ConvTranspose2d(embed_dim, embed_dim, 2, 2)
         self.f_norm1 = nn.SyncBatchNorm(embed_dim)
-        self.f_norm2 = nn.SyncBatchNorm(embed_dim)
-        self.f_norm3 = nn.SyncBatchNorm(embed_dim)
-        self.f_norm4 = nn.SyncBatchNorm(embed_dim)
+        # To avoid unused paramters if other outputs are not used
+        if self.use_last_feat_map_only is False:
+            self.f_norm2 = nn.SyncBatchNorm(embed_dim)
+            self.f_norm3 = nn.SyncBatchNorm(embed_dim)
+            self.f_norm4 = nn.SyncBatchNorm(embed_dim)
 
         self.up.apply(self._init_weights)
         self.spm.apply(self._init_weights)
@@ -298,9 +302,14 @@ class ViTAdapterVL(VisionTransformerVL):
 
         # Final Norm
         f1 = self.f_norm1(c1)
-        f2 = self.f_norm2(c2)
-        f3 = self.f_norm3(c3)
-        f4 = self.f_norm4(c4)
-
+        # To avoid unused paramters if other outputs are not used
+        if self.use_last_feat_map_only is False:
+            f2 = self.f_norm2(c2)
+            f3 = self.f_norm3(c3)
+            f4 = self.f_norm4(c4)
+        else:
+            f2 = c2
+            f3 = c3
+            f4 = c4
         # Final multi-scale ViT-Adapter feature maps
         return [f1, f2, f3, f4]
