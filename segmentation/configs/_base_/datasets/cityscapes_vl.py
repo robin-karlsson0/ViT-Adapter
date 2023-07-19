@@ -38,24 +38,20 @@ test_pipeline = [
             dict(type='Collect', keys=['img']),
         ])
 ]
-data = dict(
-    samples_per_gpu=1,
-    workers_per_gpu=1,
-    train=dict(
-        type=dataset_type,
-        data_root=data_root,
-        img_dir='leftImg8bit',  # /train
-        ann_dir='gtFine',  # /train
-        pipeline=train_pipeline),
-    val=dict(
-        type=dataset_type,
-        data_root=data_root,
-        img_dir='leftImg8bit',  # /val
-        ann_dir='gtFine',  # /val
-        pipeline=test_pipeline),
-    test=dict(
-        type=dataset_type,
-        data_root=data_root,
-        img_dir='leftImg8bit',  # /val
-        ann_dir='gtFine',  # /val
-        pipeline=test_pipeline))
+data = dict(samples_per_gpu=1,
+            workers_per_gpu=1,
+            train=dict(type=dataset_type,
+                       data_root=data_root,
+                       img_dir='leftImg8bit/train',
+                       ann_dir='gtFine/train',
+                       pipeline=train_pipeline),
+            val=dict(type=dataset_type,
+                     data_root=data_root,
+                     img_dir='leftImg8bit/val',
+                     ann_dir='gtFine/val',
+                     pipeline=test_pipeline),
+            test=dict(type=dataset_type,
+                      data_root=data_root,
+                      img_dir='leftImg8bit/val',
+                      ann_dir='gtFine/val',
+                      pipeline=test_pipeline))

@@ -4,7 +4,9 @@ import mmcv
 from mmcv.utils import print_log
 from mmseg.utils import get_root_logger
 import torch
+import torch.nn.functional as F
 import numpy as np
+from scipy.ndimage import zoom
 
 from tools.convert_datasets.txt2idx_star import load_register
 
@@ -43,11 +45,18 @@ class CityscapesVLDataset(CustomDataset):
         }
         self.valid_idxs = set(self.idx_star2emb.keys())
 
-        self.cls2emb = {}
+        self.cls_embs = []
         for cls_txt in self.CLASSES:
             idx = self.txt2idx_star[cls_txt]
             emb = self.idx_star2emb[idx]
-            self.cls2emb[cls_txt] = emb
+            self.cls_embs.append(emb)
+        self.cls_embs = torch.concat(self.cls_embs)  # (19, D)
+
+        # Dict for converting labels from 'idx*' maps --> 'class idx' maps
+        self.idx_star2cls_idx = {}
+        for cls_idx, cls_txt in enumerate(self.CLASSES):
+            idx_star = self.txt2idx_star[cls_txt]
+            self.idx_star2cls_idx[idx_star] = cls_idx
 
         # emb = list(self.idx_star2emb.values())[0]
         # self.emb_dim = emb.shape[1]
@@ -69,24 +78,19 @@ class CityscapesVLDataset(CustomDataset):
         return iou
 
     def intersect_and_union(self,
-                            pred_label,
+                            pred_embs,
                             label,
                             num_classes,
-                            label_map=dict(),
-                            pred_tresh=0.9):
+                            label_map=dict()):
         """Calculate intersection and Union.
 
         Args:
-            pred_label (ndarray | str): Prediction segmentation map
-                or predict result filename.
-            label (ndarray | str): Ground truth segmentation map
-                or label filename.
+            pred_embs (ndarray | str): Predicted embedding map (D, H, W).
+            label (ndarray | str): Ground truth segmentation idx map (H, W).
             num_classes (int): Number of categories.
             ignore_index (int): Index that will be ignored in evaluation.
             label_map (dict): Mapping old labels to new labels. The parameter will
                 work only when label is str. Default: dict().
-            reduce_zero_label (bool): Whether ignore zero label. The parameter will
-                work only when label is str. Default: False.
 
         Returns:
             torch.Tensor: The intersection of prediction and ground truth
@@ -96,55 +100,58 @@ class CityscapesVLDataset(CustomDataset):
             torch.Tensor: The prediction histogram on all classes.
             torch.Tensor: The ground truth histogram on all classes.
         """
-
-        if isinstance(pred_label, str):
-            pred_label = np.load(pred_label)
-
-        if isinstance(label, str):
-            label = mmcv.imread(label, flag='unchanged', backend='pillow')
-        else:
-            label = label.astype(np.float32)
-
         if label_map is not None:
             for old_id, new_id in label_map.items():
                 label[label == old_id] = new_id
 
-        # Convert label idx --> emb and threshold by similarity
+        pred_h, pred_w = pred_embs.shape[1:]
+        label_h, label_w = label.shape
+        scale_h = pred_h / label_h
+        scale_w = pred_w / label_w
+        if scale_h != 1. and scale_w != 1.:
+            label = zoom(label, (scale_h, scale_w), order=0)
 
-        # Valid label indices
-        label_idxs = set(list(np.unique(label)))
-        label_idxs = label_idxs.intersection(self.valid_idxs)
+        # Transform semantics --> label probability --> seg map (H,W)
+        pred_embs = torch.tensor(pred_embs).unsqueeze(0)
+        pred_logits = F.conv2d(pred_embs, self.cls_embs[:, :, None, None])
+        pred_probs = F.softmax(pred_logits, dim=1)
+        pred_seg = pred_probs.argmax(dim=1)
+        pred_seg = pred_seg[0].numpy()  # (H,W)
 
-        # Finish the evaluation code
-        raise NotImplementedError
+        # Convert label 'idx*' map --> 'class idx' map
+        idx_stars = list(np.unique(label))
 
-        # miou = []
-        for cls_txt in self.CLASSES:
-            idx = self.txt2idx_star[cls_txt]
-            if idx not in label_idxs:
+        # Create a new label map with 'cls' idxs including 'ignore' cls (255)
+        label_cls = np.ones(label.shape, dtype=int)
+        label_cls *= self.ignore_index
+        for idx_star in idx_stars:
+            if idx_star not in self.idx_star2cls_idx.keys():
                 continue
-            emb = self.cls2emb[cls_txt]
+            mask = label == idx_star
+            label_cls[mask] = self.idx_star2cls_idx[idx_star]
 
-            sim = np.einsum('dhw,d->hw', pred_label, emb)
-            pred_mask = sim > pred_tresh
+        # pred_seg: torch.tensor int (H, W)
+        # label_cls: torch.tensor int (H, W)
+        # NOTE Need to remove 'ignore' idx* from mask
+        valid_mask = (label != np.iinfo(np.uint32).max)
+        pred_seg = pred_seg[valid_mask]
+        label_cls = label_cls[valid_mask]
 
-            intersection = np.logical_and(pred_mask, label).sum((1, 2, 3))
+        pred_seg = torch.tensor(pred_seg)
+        label_cls = torch.tensor(label_cls)
 
-            # union = np.logical_or(pred_mask, label).sum((1, 2, 3))
-
-            # iou = self.compute_iou(pred_mask, label)
-            # miou.append(iou)
-
-        intersect = pred_label[pred_label == label]
+        # Extracts matching elements with class idx
+        intersect = pred_seg[pred_seg == label_cls]
+        # Sums up elements by class idx
         area_intersect = torch.histc(intersect.float(),
                                      bins=(num_classes),
                                      min=0,
                                      max=num_classes - 1)
-        area_pred_label = torch.histc(pred_label.float(),
+        area_pred_label = torch.histc(pred_seg.float(),
                                       bins=(num_classes),
                                       min=0,
                                       max=num_classes - 1)
-        area_label = torch.histc(label.float(),
+        area_label = torch.histc(label_cls.float(),
                                  bins=(num_classes),
                                  min=0,
                                  max=num_classes - 1)
