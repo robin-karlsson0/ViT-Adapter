@@ -72,7 +72,7 @@ model = dict(
         align_corners=False,
         loss_decode=dict(type='CosineEmbMaskLoss', margin=0.5,
                          loss_weight=1.0)),
-    test_cfg=dict(mode='whole'))  #, crop_size=crop_size, stride=(448, 448)))
+    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(448, 448)))
 # dataset settings
 img_norm_cfg = dict(mean=[123.675, 116.28, 103.53],
                     std=[58.395, 57.12, 57.375],
