@@ -4,7 +4,7 @@
 # import numpy as np
 
 _base_ = [
-    '../_base_/../_base_/datasets/cityscapes_448x448_vl.py',
+    '../_base_/../_base_/datasets/mapillary_vistas_448_448_vl.py',
     '../_base_/default_runtime.py', '../_base_/schedules/schedule_80k.py'
 ]
 # ''
