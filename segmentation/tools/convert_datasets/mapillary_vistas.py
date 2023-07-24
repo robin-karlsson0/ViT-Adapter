@@ -61,11 +61,15 @@ def load_cls2rgb_dict(config_path: str, label_depth: int) -> dict:
 def modify_label_filename(label_filepath, ver):
     """Returns a mmsegmentation-combatible label filename."""
     ver = ver.replace('.', '_')  # Ex: v1.2 --> v1_2
-    label_suffix = f'{ver}_vl_emb_idxs.npz'
+    label_suffix = f'_{ver}_vl_emb_idxs.npz'
     # Ensure that label filenames are modified only once
     if label_suffix in label_filepath:
         return label_filepath
-    label_filepath = label_filepath.replace('.png', label_suffix)
+    orig_suffix = label_filepath[-4:]
+    if orig_suffix == '.png':
+        label_filepath = label_filepath.replace('.png', label_suffix)
+    elif orig_suffix == '.jpg':
+        label_filepath = label_filepath.replace('.jpg', label_suffix)
     return label_filepath
 
 
@@ -109,6 +113,7 @@ def convert_label_to_idx_star(task: tuple,
 
 
 def restructure_vistas_directory(vistas_path,
+                                 ver,
                                  train_on_val_and_test=False,
                                  use_symlinks=True):
     """Creates a new directory structure and link existing files into it.
@@ -133,6 +138,7 @@ def restructure_vistas_directory(vistas_path,
         ...
     Args:
         vistas_path: Absolute path to the Mapillary Vistas 'vistas/' directory.
+        ver: Version string (e.g. v1.2)
         train_on_val_and_test: Use validation and test samples as training
                                samples if True.
         label_suffix: Label filename ending string.
@@ -158,8 +164,8 @@ def restructure_vistas_directory(vistas_path,
 
             img_filename = img_filepath.split('/')[-1]
 
-            ann_filename = img_filename[:-4] + LABEL_SUFFIX
-            ann_filepath = f'{vistas_path}/{split}/v2.0/labels/{ann_filename}'
+            ann_filename = modify_label_filename(img_filename, ver)
+            ann_filepath = f'{vistas_path}/{split}/{ver}/labels/{ann_filename}'
 
             img_linkpath = f'{vistas_path}/img_dir/{split}/{img_filename}'
             if split == 'testing':
@@ -310,7 +316,7 @@ def main():
 
     # Restructure directory structure into 'img_dir' and 'ann_dir'
     if args.restruct:
-        restructure_vistas_directory(out_dir, args.train_on_val_and_test,
+        restructure_vistas_directory(out_dir, ver, args.train_on_val_and_test,
                                      args.symlink)
 
 
