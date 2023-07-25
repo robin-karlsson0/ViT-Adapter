@@ -30,7 +30,17 @@ pip install scipy
 pip install ninja
 ln -s ../detection/ops ./
 cd ops & sh make.sh # compile deformable attention
+
+# Install CLIP
+pip install ftfy regex tqdm
+pip install git+https://github.com/openai/CLIP.git
+
+# For baseline evaluation
+pip install git+https://github.com/facebookresearch/segment-anything.git
 ```
+
+Download SAM model checkpoint
+> First download a [model checkpoint](https://github.com/facebookresearch/segment-anything#model-checkpoints) (`vit_h`). Then the model can be used in just a few lines to get masks from a given prompt:
 
 Install PyTorch with support CUDA version
 ```
@@ -67,10 +77,6 @@ export PYTHONPATH=.
 pip install mmengine
 
 pip install scipy
-
-# Install CLIP
-pip install ftfy regex tqdm
-pip install git+https://github.com/openai/CLIP.git
 
 # Install OpenCLIP
 TODO
