@@ -78,6 +78,11 @@ class RegionProposalCLIPModel():
             nonzero_inds: (N, 2) matrix w. masked pixels (i,j) as row vectors.
         '''
         _x, _y, _w, _h = tuple(mask["bbox"])  # xywh bounding box
+        # NOTE Sometimes indices can be floats
+        _x = int(_x)
+        _y = int(_y)
+        _w = int(_w)
+        _h = int(_h)
         # seg = masks[maskidx]["segmentation"]
         nonzero_inds = torch.argwhere(torch.from_numpy(mask["segmentation"]))
         # NOTE Image is (H, W, 3). In SAM output, y coords are along height, x along width
@@ -87,7 +92,7 @@ class RegionProposalCLIPModel():
 
         return roi_emb, nonzero_inds
 
-    def forward(self, img_path: str) -> torch.tensor:
+    def forward(self, img: np.array) -> torch.tensor:
         '''Returns an embedding map with CLIP embeddings from region proposals.
         
         Summary:
@@ -102,13 +107,11 @@ class RegionProposalCLIPModel():
                 emb_map := add({mask}, {emb})
 
         Args:
-            img_path: Path to image file
+            img: uint8 RGB image (e.g. cv2.cvtColor(cv2.imread(), BGR2RGB)).
  
         Returns:
-            VL embedding map (D, H, W).
+            VL embedding map (D, H, W) as float tensor.
         '''
-        img = cv2.imread(img_path)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img_h, img_w = img.shape[0], img.shape[1]
 
         # Region proposals: list of dicts
@@ -143,5 +146,5 @@ class RegionProposalCLIPModel():
             mask_emb_norm = F.normalize(mask_emb_norm.float(), dim=-1)
             emb_map[mask_px_is, mask_px_js] = mask_emb_norm.half()
 
-        emb_map = torch.permute(emb_map, (2, 0, 1))
+        emb_map = torch.permute(emb_map, (2, 0, 1)).float()
         return emb_map  # (D, H, W)

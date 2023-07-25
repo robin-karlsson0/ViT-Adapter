@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 import torch
 import torch.nn.functional as F
 from PIL import Image
@@ -29,7 +30,7 @@ class ConceptFusionModel(RegionProposalCLIPModel):
 
         self.cos_sim = torch.nn.CosineSimilarity()
 
-    def forward(self, img_path: str) -> torch.tensor:
+    def forward(self, img: np.array) -> torch.tensor:
         '''Returns an embedding map with fused CLIP embeddings from region
         proposals.
         
@@ -45,20 +46,18 @@ class ConceptFusionModel(RegionProposalCLIPModel):
                 emb_map := add({mask}, {emb})
 
         Args:
-            img_path: Path to image file
+            img: uint8 RGB image (e.g. cv2.cvtColor(cv2.imread(), BGR2RGB)).
  
         Returns:
-            VL embedding map (D, H, W).
+            VL embedding map (D, H, W) as float tensor.
         '''
-        img_cv2 = cv2.imread(img_path)
-        img_cv2 = cv2.cvtColor(img_cv2, cv2.COLOR_BGR2RGB)
-        img_h, img_w = img_cv2.shape[0], img_cv2.shape[1]
+        img_h, img_w = img.shape[0], img.shape[1]
 
         # Region proposals: list of dicts
-        masks = self.region_props(img_cv2)
+        masks = self.region_props(img)
 
         # Global embedding
-        img_pil = Image.open(img_path)
+        img_pil = Image.fromarray(img)
         with torch.cuda.amp.autocast():
             global_emb = self.clip_emb(img_pil)  # (1, D)
         global_emb = global_emb.half().cuda()
@@ -71,7 +70,7 @@ class ConceptFusionModel(RegionProposalCLIPModel):
         for mask_idx in range(len(masks)):
             mask = masks[mask_idx]
 
-            roi_emb, nonzero_inds = self.mask_clip_emb(img_cv2, mask)
+            roi_emb, nonzero_inds = self.mask_clip_emb(img, mask)
             roi_emb = torch.nn.functional.normalize(roi_emb)
 
             feat_per_roi.append(roi_emb)
@@ -104,5 +103,5 @@ class ConceptFusionModel(RegionProposalCLIPModel):
             mask_emb_norm = F.normalize(mask_emb_norm.float(), dim=-1)
             emb_map[mask_px_is, mask_px_js] = mask_emb_norm.half()
 
-        emb_map = torch.permute(emb_map, (2, 0, 1))
+        emb_map = torch.permute(emb_map, (2, 0, 1)).float()
         return emb_map  # (D, H, W)
