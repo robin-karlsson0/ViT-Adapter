@@ -1,12 +1,12 @@
 import os.path as osp
 
-from mmseg_custom.datasets.builder import DATASETS
-from mmseg_custom.datasets.custom import CustomDataset
+import numpy as np
 import torch
 import torch.nn.functional as F
-import numpy as np
 from scipy.ndimage import zoom
 
+from mmseg_custom.datasets.builder import DATASETS
+from mmseg_custom.datasets.custom import CustomDataset
 from tools.convert_datasets.txt2idx_star import load_register
 
 
@@ -74,7 +74,7 @@ class MapillaryVistasV1_2VLDataset(CustomDataset):
             idx = self.txt2idx_star[cls_txt]
             emb = self.idx_star2emb[idx]
             self.cls_embs.append(emb)
-        self.cls_embs = torch.concat(self.cls_embs)  # (19, D)
+        self.cls_embs = torch.cat(self.cls_embs)  # (19, D)
 
         # Dict for converting labels from 'idx*' maps --> 'class idx' maps
         self.idx_star2cls_idx = {}

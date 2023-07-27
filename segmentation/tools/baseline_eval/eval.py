@@ -206,7 +206,7 @@ if __name__ == '__main__':
         idx = txt2idx_star[cls_txt]
         emb = idx_star2emb[idx]
         cls_embs.append(emb)
-    cls_embs = torch.concat(cls_embs)  # (19, D)
+    cls_embs = torch.cat(cls_embs)  # (19, D)
 
     # Dict for converting labels from 'idx*' maps --> 'class idx' maps
     idx_star2cls_idx = {}
