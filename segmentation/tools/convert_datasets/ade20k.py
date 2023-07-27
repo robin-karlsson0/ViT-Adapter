@@ -155,10 +155,10 @@ def load_sample(sample_idx: int, index_ade20k: dict) -> tuple:
         raise IOError(f'Could not read sample file ({sample_path})')
     sample = loadAde20K(sample_path)
 
-    img = cv2.imread(sample['img_name'])[:, :, ::-1]
+    # img = cv2.imread(sample['img_name'])[:, :, ::-1]
     seg = sample['class_mask']
 
-    return img, seg, sample_path
+    return seg, sample_path
 
 
 ###########################
@@ -206,11 +206,9 @@ def convert_label_to_idx_star(task: tuple,
         label_filepath: Path to the original semantic label.
         ignore_id: Default value for unlabeled elements.
     """
-    # sample_idx, idx2idx_star, index_ade20k = task
-    sample_idx, idx2idx_star, index_ade20k, txt2idx_star = task
+    sample_idx, idx2idx_star, index_ade20k = task
 
-    # seg, sample_path = load_sample(sample_idx, index_ade20k)
-    img, seg, sample_path = load_sample(sample_idx, index_ade20k)
+    seg, sample_path = load_sample(sample_idx, index_ade20k)
 
     seg_idxs = list(np.unique(seg))
     # Remove background elements labeled by idx = 0
@@ -391,7 +389,7 @@ def main():
         idx2idx_star = gen_idx2idx_star_dict(txt2idx_star, idx2cls)
 
         num_samples = len(index_ade20k['folder'])
-        tasks = [(idx, idx2idx_star, index_ade20k, txt2idx_star)
+        tasks = [(idx, idx2idx_star, index_ade20k)
                  for idx in range(num_samples)]
 
         if args.nproc > 1:
