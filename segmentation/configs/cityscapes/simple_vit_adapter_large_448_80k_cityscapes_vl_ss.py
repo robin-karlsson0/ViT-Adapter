@@ -69,8 +69,9 @@ model = dict(
                          loss_weight=1.0)),
     test_cfg=dict(mode='slide', crop_size=crop_size, stride=(448, 448)))
 # dataset settings
-img_norm_cfg = dict(mean=[123.675, 116.28, 103.53],
-                    std=[58.395, 57.12, 57.375],
+# CLIP img encoder
+img_norm_cfg = dict(mean=[122.7709383, 116.7460125, 104.09373615],
+                    std=[68.5005327, 66.6321579, 70.32316305],
                     to_rgb=True)
 train_pipeline = [
     dict(type='LoadImageFromFile'),

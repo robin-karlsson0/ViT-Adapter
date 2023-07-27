@@ -37,6 +37,9 @@ pip install git+https://github.com/openai/CLIP.git
 
 # For baseline evaluation
 pip install git+https://github.com/facebookresearch/segment-anything.git
+
+# For ADE20K dataset preprocessing
+pip install ipdb
 ```
 
 Download SAM model checkpoint

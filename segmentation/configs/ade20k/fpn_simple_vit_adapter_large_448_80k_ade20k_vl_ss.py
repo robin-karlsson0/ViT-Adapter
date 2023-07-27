@@ -4,10 +4,9 @@
 # import numpy as np
 
 _base_ = [
-    '../_base_/../_base_/datasets/cityscapes_448x448_vl.py',
+    '../_base_/../_base_/datasets/ade20k_448_448_vl.py',
     '../_base_/default_runtime.py', '../_base_/schedules/schedule_80k.py'
 ]
-# ''
 crop_size = (448, 448)
 # pretrained = 'https://conversationhub.blob.core.windows.net/beit-share-public/beit/beit_large_patch16_224_pt22k_ft22k.pth'
 pretrained = 'pretrain/ViT-L_14_336px_clip_backbone.pth'
@@ -58,22 +57,20 @@ model = dict(
               in_channels=[1024, 1024, 1024, 1024],
               out_channels=1024,
               num_outs=4,
-              norm_cfg=dict(type='SyncBN', requires_grad=True)),
-    decode_head=dict(type='FPNHeadVL',
-                     in_channels=[1024, 1024, 1024, 1024],
-                     in_index=[0, 1, 2, 3],
-                     feature_strides=[4, 8, 16, 32],
-                     channels=768,
-                     output_size=(448, 448),
-                     add_feat_maps=True,
-                     normalize_output=True,
-                     normalize_target_embs=True,
-                     dropout_ratio=0.0,
-                     norm_cfg=dict(type='SyncBN', requires_grad=True),
-                     align_corners=False,
-                     loss_decode=dict(type='CosineEmbMaskLoss',
-                                      margin=0.5,
-                                      loss_weight=1.0)),
+              norm_cfg=dict(type='SyncBN', requires_grad=True),
+              use_last_feat_map_only=True),
+    decode_head=dict(
+        type='SimpleHeadVL',
+        in_channels=[1024, 1024, 1024, 1024],
+        channels=768,
+        output_size=(448, 448),
+        normalize_output=True,
+        normalize_target_embs=True,
+        norm_cfg=dict(type='SyncBN',
+                      requires_grad=True),  # Or dict(type='LN', eps=1e-6), ?
+        align_corners=False,
+        loss_decode=dict(type='CosineEmbMaskLoss', margin=0.5,
+                         loss_weight=1.0)),
     test_cfg=dict(mode='slide', crop_size=crop_size, stride=(448, 448)))
 # dataset settings
 # CLIP img encoder
@@ -85,7 +82,7 @@ train_pipeline = [
     dict(type='LoadAnnotations'),
     dict(type='Resize', img_scale=(896, 448), ratio_range=(0.5, 2.0)),
     dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
-    dict(type='RandomFlip', prob=0.0),
+    dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
     dict(type='Normalize', **img_norm_cfg),
     dict(
