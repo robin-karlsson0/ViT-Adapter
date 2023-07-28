@@ -1,5 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from .ade20k import ADE20KVLDataset  # noqa: F401,F403
+from .adechallenge import ADEChallengeVLDataset  # noqa: F401,F403
 from .builder import *  # noqa: F401,F403
 from .cityscapes_vl import CityscapesVLDataset  # noqa: F401,F403
 from .mapillary import MapillaryDataset  # noqa: F401,F403

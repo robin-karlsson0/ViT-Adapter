@@ -4,7 +4,7 @@
 # import numpy as np
 
 _base_ = [
-    '../_base_/../_base_/datasets/ade20k_448_448_vl.py',
+    '../_base_/../_base_/datasets/adechallenge_448_448_vl.py',
     '../_base_/default_runtime.py', '../_base_/schedules/schedule_80k.py'
 ]
 crop_size = (448, 448)

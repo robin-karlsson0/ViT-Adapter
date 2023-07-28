@@ -4,9 +4,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn import ConvModule
-
-from mmseg.ops import Upsample, resize
 from mmseg.models.builder import HEADS
+from mmseg.ops import Upsample, resize
+
 from mmseg_custom.models.decode_heads.decode_head_vl import BaseDecodeHeadVL
 from tools.convert_datasets.txt2idx_star import load_register
 
