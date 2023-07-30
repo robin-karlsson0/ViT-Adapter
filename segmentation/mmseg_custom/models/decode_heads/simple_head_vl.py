@@ -114,16 +114,21 @@ class SimpleHeadVL(BaseDecodeHeadVL):
         return batch_masks
 
     def forward(self, inputs):
+        '''
+        Original implementation
+            out = self.conv(inputs[0])
+            out = F.normalize(out)
+            out = F.interpolate(out, self.output_size, mode='nearest')
+        '''
+        # Upsample
+        out = F.interpolate(inputs[0], self.output_size, mode='bilinear')
 
         # Reduce dim by 1x1 conv
-        out = self.conv(inputs[0])
+        out = self.conv(out)
 
         # Normalize
         if self.normalize_output:
             out = F.normalize(out)
-
-        # Upsample
-        out = F.interpolate(out, self.output_size, mode='nearest')
 
         return out
 
