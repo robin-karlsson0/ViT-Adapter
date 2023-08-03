@@ -132,7 +132,8 @@ class SimpleHeadVL(BaseDecodeHeadVL):
 
         return out
 
-    def forward_train(self, inputs, img_metas, gt_semantic_seg, train_cfg):
+    def forward_train(self, inputs, img_metas, gt_semantic_seg: torch.tensor,
+                      train_cfg):
         """Forward function for training.
         Args:
             inputs (list[Tensor]): List of multi-level img features.
@@ -141,22 +142,21 @@ class SimpleHeadVL(BaseDecodeHeadVL):
                 'filename', 'ori_shape', 'pad_shape', and 'img_norm_cfg'.
                 For details on the values of these keys see
                 `mmseg/datasets/pipelines/formatting.py:Collect`.
-            gt_semantic_seg (Tensor): Semantic segmentation masks
-                used if the architecture supports semantic segmentation task.
+            gt_semantic_seg: Semantics encoded by 'idx_star' indices (B, H, W).
             train_cfg (dict): The training config.
 
         Returns:
             dict[str, Tensor]: a dictionary of loss components
         """
-        pred_embs = self.forward(inputs)
+        pred_embs = self.forward(inputs)  # (B, D, H, W)
 
         # Label 'idx' --> 'emb' maps (B,D,H,W)
-        label_embs = self.label_idx2emb(gt_semantic_seg)
+        # label_embs = self.label_idx2emb(gt_semantic_seg)
         # Label 'idx' --> mask maps (list of (K,H,W) bool tensors)
-        label_masks = self.label_idx2mask(gt_semantic_seg)
+        # label_masks = self.label_idx2mask(gt_semantic_seg)
 
         losses = {}
-        loss_decode = self.loss_decode(pred_embs, label_embs, label_masks)
+        loss_decode = self.loss_decode(pred_embs, gt_semantic_seg)
         losses[self.loss_decode.loss_name] = loss_decode
 
         return losses
