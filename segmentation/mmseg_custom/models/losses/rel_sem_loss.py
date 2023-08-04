@@ -18,6 +18,7 @@ class RelativeSemanticLoss(nn.Module):
                  idx_star2emb_path: str = './idx_star2emb.pkl',
                  objectinfo150_path:
                  str = 'data/ADEChallengeData2016/objectInfo150.txt',
+                 temp: float = 0.07,
                  loss_weight: float = 1.,
                  loss_name: str = 'loss_relsem'):
         """
@@ -37,8 +38,8 @@ class RelativeSemanticLoss(nn.Module):
         self.idx_star2cls_idx = idx_star2cls_idx
         self.cls_embs = cls_embs  # (K, D)
         self.num_clss = self.cls_embs.shape[0]
-        # Temperature paramter in sigmoid function
-        self.temp = 0.07
+        # Temperature parameter scaling the unnormalized logits distribution
+        self.temp = temp
 
         self.ce = torch.nn.CrossEntropyLoss(ignore_index=255)
 
@@ -70,12 +71,7 @@ class RelativeSemanticLoss(nn.Module):
 
             cls_idx_map[mask] = cls_idx
 
-        # ignore_mask = torch.zeros_like(cls_idx_map)
-        # mask = cls_idx_map == -1
-        # ignore_mask[mask] = 1
-        # cls_idx_map[mask] = 0
-
-        return cls_idx_map[:, 0]  # , ignore_mask
+        return cls_idx_map[:, 0]
 
     @staticmethod
     def convert_map_cls_idx2cls_masks(cls_idx_map: torch.tensor,
@@ -92,21 +88,12 @@ class RelativeSemanticLoss(nn.Module):
         '''
         B, H, W = cls_idx_map.shape
 
-        # TMP
-        cls_idx_map[cls_idx_map == -1] = 0
-
         # Reshape input tensor to (B, H, W, 1) to be broadcasted with one-hot tensor
         cls_idx_map = cls_idx_map.view(B, H, W, 1)
 
         # Generate one-hot tensor using scatter method
         device = cls_idx_map.device
-        one_hot = torch.zeros(
-            B,
-            H,
-            W,
-            num_clss,
-            # dtype=torch.bool,
-            device=device)
+        one_hot = torch.zeros(B, H, W, num_clss, device=device)
         one_hot = one_hot.scatter(3, cls_idx_map, 1)
         # Reshape to (B, K, H, W)
         cls_masks = one_hot.permute(0, 3, 1, 2)
@@ -134,22 +121,9 @@ class RelativeSemanticLoss(nn.Module):
         sim = sim / self.temp
         # sim = F.softmax(sim / self.temp, dim=1)  # (B, K, H, W)
 
-        # Compute most similar semantic
-        # pred_cls_masks = torch.argmax(sim, dim=1)
-
-        # Convert index map to class masks (B, K, H, W)
-        # cls_masks = self.convert_map_cls_idx2cls_masks(cls_idx_map,
-        #                                                self.num_clss)
-
         loss = self.ce(sim, cls_idx_map)
 
         return loss
-
-    # @staticmethod
-    # def ce(output, label, eps=1e-14):
-    #     '''Cross-entropy term.
-    #     '''
-    #     return -label * torch.log(output + eps)
 
     @property
     def loss_name(self):
