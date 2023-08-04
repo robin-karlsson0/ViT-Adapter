@@ -130,7 +130,10 @@ class RelativeSemanticLoss(nn.Module):
         # Compute semantic similarity scores
         device = pred_embs.device
         sim = F.conv2d(pred_embs, self.cls_embs[:, :, None, None].to(device))
-        sim = F.softmax(sim / self.temp, dim=1)  # (B, K, H, W)
+        # NOTE CrossEntropyLoss() requires unnormalized logits
+        sim = sim / self.temp
+        # sim = F.softmax(sim / self.temp, dim=1)  # (B, K, H, W)
+
         # Compute most similar semantic
         # pred_cls_masks = torch.argmax(sim, dim=1)
 
@@ -138,7 +141,6 @@ class RelativeSemanticLoss(nn.Module):
         # cls_masks = self.convert_map_cls_idx2cls_masks(cls_idx_map,
         #                                                self.num_clss)
 
-        # loss = self.ce(sim, cls_masks) + self.ce(1 - sim, 1 - cls_masks)
         loss = self.ce(sim, cls_idx_map)
 
         return loss
