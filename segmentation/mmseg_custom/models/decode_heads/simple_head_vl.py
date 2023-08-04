@@ -54,7 +54,8 @@ class SimpleHeadVL(BaseDecodeHeadVL):
 
         self.conv = ConvModule(self.in_channels[0],
                                self.channels,
-                               kernel_size=1)
+                               kernel_size=1,
+                               act_cfg=None)
 
     def label_idx2emb(self, idx_maps: torch.tensor) -> torch.tensor:
         '''
