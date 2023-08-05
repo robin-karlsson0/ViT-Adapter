@@ -20,7 +20,8 @@ class RelativeSemanticLoss(nn.Module):
                  str = 'data/ADEChallengeData2016/objectInfo150.txt',
                  temp: float = 0.07,
                  loss_weight: float = 1.,
-                 loss_name: str = 'loss_relsem'):
+                 loss_name: str = 'loss_relsem',
+                 **kwargs):
         """
         Args:
             margin: Threshold for ignoring dissimilarity distance.
