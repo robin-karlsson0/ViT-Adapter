@@ -1,10 +1,10 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+from .decode_head_vl import BaseDecodeHeadVL
+from .fpn_head_vl import FPNHeadVL
 from .mask2former_head import Mask2FormerHead
 from .mask2former_head_vl import Mask2FormerHeadVL
 from .maskformer_head import MaskFormerHead
-from .fpn_head_vl import FPNHeadVL
-from .decode_head_vl import BaseDecodeHeadVL
-from .simple_head_vl import SimpleHeadVL
+from .simple_head_vl import SimpleHeadRelSemVL, SimpleHeadVL
 
 __all__ = [
     'MaskFormerHead',
@@ -13,4 +13,5 @@ __all__ = [
     'FPNHeadVL',
     'BaseDecodeHeadVL',
     'SimpleHeadVL',
+    'SimpleHeadRelSemVL',
 ]

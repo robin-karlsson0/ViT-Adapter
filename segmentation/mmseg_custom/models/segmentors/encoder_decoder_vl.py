@@ -2,12 +2,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from mmseg.core import add_prefix
-from mmseg.ops import resize
 from mmseg.models import builder
 from mmseg.models.builder import SEGMENTORS
 from mmseg.models.segmentors.base import BaseSegmentor
+from mmseg.ops import resize
+
+from tools.convert_datasets.txt2idx_star import load_register
 
 
 @SEGMENTORS.register_module()
@@ -138,7 +139,6 @@ class EncoderDecoderVL(BaseSegmentor):
         Returns:
             dict[str, Tensor]: a dictionary of loss components
         """
-
         x = self.extract_feat(img)
 
         losses = dict()

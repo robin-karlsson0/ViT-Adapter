@@ -4,11 +4,10 @@ from abc import ABCMeta, abstractmethod
 import torch
 import torch.nn as nn
 from mmcv.runner import BaseModule, auto_fp16, force_fp32
-
 from mmseg.core import build_pixel_sampler
-from mmseg.ops import resize
 from mmseg.models.builder import build_loss
 from mmseg.models.losses import accuracy
+from mmseg.ops import resize
 
 
 class BaseDecodeHeadVL(BaseModule, metaclass=ABCMeta):

@@ -6,14 +6,16 @@ from functools import partial
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from mmcv.cnn import build_norm_layer
 from mmseg.models.builder import BACKBONES
-from ops.modules import MSDeformAttn
 from timm.models.layers import trunc_normal_
 from torch.nn.init import normal_
-from mmcv.cnn import build_norm_layer
 
+from ops.modules import MSDeformAttn
+
+from .adapter_modules import (InteractionBlock, SpatialPriorModule,
+                              deform_inputs)
 from .base.vit import VisionTransformerVL
-from .adapter_modules import SpatialPriorModule, InteractionBlock, deform_inputs
 
 _logger = logging.getLogger(__name__)
 

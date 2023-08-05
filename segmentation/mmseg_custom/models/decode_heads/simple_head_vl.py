@@ -133,7 +133,8 @@ class SimpleHeadVL(BaseDecodeHeadVL):
 
         return out
 
-    def forward_train(self, inputs, img_metas, gt_semantic_seg, train_cfg):
+    def forward_train(self, inputs, img_metas, gt_semantic_seg: torch.tensor,
+                      train_cfg):
         """Forward function for training.
         Args:
             inputs (list[Tensor]): List of multi-level img features.
@@ -142,14 +143,13 @@ class SimpleHeadVL(BaseDecodeHeadVL):
                 'filename', 'ori_shape', 'pad_shape', and 'img_norm_cfg'.
                 For details on the values of these keys see
                 `mmseg/datasets/pipelines/formatting.py:Collect`.
-            gt_semantic_seg (Tensor): Semantic segmentation masks
-                used if the architecture supports semantic segmentation task.
+            gt_semantic_seg: Semantics encoded by 'idx_star' indices (B, H, W).
             train_cfg (dict): The training config.
 
         Returns:
             dict[str, Tensor]: a dictionary of loss components
         """
-        pred_embs = self.forward(inputs)
+        pred_embs = self.forward(inputs)  # (B, D, H, W)
 
         # Label 'idx' --> 'emb' maps (B,D,H,W)
         label_embs = self.label_idx2emb(gt_semantic_seg)
@@ -158,6 +158,59 @@ class SimpleHeadVL(BaseDecodeHeadVL):
 
         losses = {}
         loss_decode = self.loss_decode(pred_embs, label_embs, label_masks)
+        losses[self.loss_decode.loss_name] = loss_decode
+
+        return losses
+
+
+@HEADS.register_module()
+class SimpleHeadRelSemVL(SimpleHeadVL):
+    """Simple head for vision-language embedding output
+
+    Takes the largest ViT-Adapter output feature map (B, D, H, W) and
+    transforms it into an embedding map (B, D_emb, H, W) using a single 1x1
+    convolution and resize operation.
+    
+    """
+
+    def __init__(self,
+                 output_size: tuple,
+                 normalize_output: bool = True,
+                 normalize_target_embs: bool = True,
+                 idx_star2emb_path: str = 'idx_star2emb.pkl',
+                 ignore_emb_idx: int = np.iinfo(np.uint32).max,
+                 **kwargs):
+        '''
+        Args:
+            add_feat_maps: Add multi-scale feature maps if True. Return largest
+                           feature map if False.
+            normalize_output: Normalize final output embedding map if True.
+        '''
+        super(SimpleHeadRelSemVL,
+              self).__init__(output_size, normalize_output,
+                             normalize_target_embs, idx_star2emb_path,
+                             ignore_emb_idx, **kwargs)
+
+    def forward_train(self, inputs, img_metas, gt_semantic_seg: torch.tensor,
+                      train_cfg):
+        """Forward function for training.
+        Args:
+            inputs (list[Tensor]): List of multi-level img features.
+            img_metas (list[dict]): List of image info dict where each dict
+                has: 'img_shape', 'scale_factor', 'flip', and may also contain
+                'filename', 'ori_shape', 'pad_shape', and 'img_norm_cfg'.
+                For details on the values of these keys see
+                `mmseg/datasets/pipelines/formatting.py:Collect`.
+            gt_semantic_seg: Semantics encoded by 'idx_star' indices (B, H, W).
+            train_cfg (dict): The training config.
+
+        Returns:
+            dict[str, Tensor]: a dictionary of loss components
+        """
+        pred_embs = self.forward(inputs)  # (B, D, H, W)
+
+        losses = {}
+        loss_decode = self.loss_decode(pred_embs, gt_semantic_seg)
         losses[self.loss_decode.loss_name] = loss_decode
 
         return losses

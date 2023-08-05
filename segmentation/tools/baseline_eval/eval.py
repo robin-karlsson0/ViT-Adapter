@@ -14,6 +14,7 @@ from scipy.ndimage import zoom
 from tqdm import tqdm
 
 from tools.baseline_eval.models.concept_fusion_model import ConceptFusionModel
+from tools.baseline_eval.models.lseg_model import LSegModel
 from tools.baseline_eval.models.rp_clip_model import RegionProposalCLIPModel
 from tools.convert_datasets.txt2idx_star import load_register
 
@@ -153,10 +154,15 @@ def parse_args():
     parser.add_argument('model_type',
                         type=str,
                         help='\{rp_clip | concept_fusion\}')
-    parser.add_argument('rp_model_type', type=str, help='\{vit_h|TODO\}')
-    parser.add_argument('rp_ckpt_path',
+    parser.add_argument('ckpt_path',
                         type=str,
-                        help='Path to region proposal model checkpoint.')
+                        default=None,
+                        help='Path to trained model checkpoint.')
+    parser.add_argument('--rp_model_type',
+                        type=str,
+                        default=None,
+                        help='\{vit_h|TODO\}')
+    parser.add_argument('--img_target_size', type=int, default=1024)
     args = parser.parse_args()
     return args
 
@@ -170,11 +176,10 @@ if __name__ == '__main__':
     #############
     #  Dataset
     #############
-    target_size = 1024
     if args.dataset_type == 'mapillary':
-        # transform =
         dataset = MapillaryVistasV1_2Dataset(args.dataset_path,
-                                             args.dataset_split, target_size)
+                                             args.dataset_split,
+                                             args.img_target_size)
         cls_txts, rgbs = get_mapillary_vistas_classes_and_rgbs()
     else:
         raise IOError(f'Dataset not implemented ({args.dataset_type})')
@@ -218,11 +223,20 @@ if __name__ == '__main__':
     #  Load model
     ################
     if args.model_type == 'rp_clip':
-        model = RegionProposalCLIPModel(args.rp_model_type, args.rp_ckpt_path,
+        model = RegionProposalCLIPModel(args.rp_model_type, args.ckpt_path,
                                         device)
     elif args.model_type == 'concept_fusion':
-        model = ConceptFusionModel(args.rp_model_type, args.rp_ckpt_path,
-                                   device)
+        model = ConceptFusionModel(args.rp_model_type, args.ckpt_path, device)
+    elif args.model_type == 'lseg':
+        model = LSegModel(args.ckpt_path, device)
+
+        # Compute txt embs with CLIP used for LSeg
+        cls_embs = []
+        for cls_txt in cls_txts:
+            emb = model.conv_txt2emb(cls_txt)
+            cls_embs.append(emb)
+        cls_embs = torch.cat(cls_embs)  # (19, D)
+
     else:
         raise IOError(f'Model type not implemented ({args.model_type})')
 
@@ -238,7 +252,7 @@ if __name__ == '__main__':
         img, label = dataset[sample_idx]
 
         emb_map = model.forward(img)
-        emb_map = emb_map.numpy()
+        emb_map = emb_map.cpu().numpy()
 
         out = intersect_and_union(emb_map, label, num_clss, ignore_idx,
                                   cls_embs, idx_star2cls_idx)
