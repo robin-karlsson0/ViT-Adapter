@@ -168,4 +168,5 @@ data/
 .vscode/
 checkpoints/
 work_dirs/
-ops/
+ops
+pretrained/
