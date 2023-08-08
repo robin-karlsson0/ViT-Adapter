@@ -8,3 +8,4 @@ from .mapillary_vistas_vl import \
     MapillaryVistasV1_2VLDataset  # noqa: F401,F403
 from .pipelines import *  # noqa: F401,F403
 from .potsdam import PotsdamDataset  # noqa: F401,F403
+from .coco_stuff164k import COCOStuffVLDataset  # noqa: F401,F403

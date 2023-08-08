@@ -1,9 +1,9 @@
 import argparse
 import os
-import torch
-import numpy as np
 
 import clip
+import numpy as np
+import torch
 
 from tools.convert_datasets.txt2idx_star import load_register, save_register
 
