@@ -36,6 +36,12 @@ class RelativeSemanticLoss(nn.Module):
         elif dataset == 'coco':
             idx_star2cls_idx, cls_embs = self.load_coco_info(
                 txt2idx_star_path, idx_star2emb_path)
+        elif dataset == 'bdd100k':
+            idx_star2cls_idx, cls_embs = self.load_bdd100k_info(
+                txt2idx_star_path, idx_star2emb_path)
+        elif dataset == 'idd':
+            idx_star2cls_idx, cls_embs = self.load_idd_info(
+                txt2idx_star_path, idx_star2emb_path)
         else:
             raise IOError(f'Given dataset not implemented ({dataset})')
 
@@ -192,10 +198,8 @@ class RelativeSemanticLoss(nn.Module):
         return idx_star2cls_idx, cls_embs
 
     @staticmethod
-    def load_coco_info(
-        txt2idx_star_path: str = './txt2idx_star.pkl',
-        idx_star2emb_path: str = './idx_star2emb.pkl'
-    ) -> tuple:
+    def load_coco_info(txt2idx_star_path: str = './txt2idx_star.pkl',
+                       idx_star2emb_path: str = './idx_star2emb.pkl') -> tuple:
         """Returns mapping and class embeddings for the ADE Challenge dataset.
         """
         txt2idx_star = load_register(txt2idx_star_path)
@@ -207,35 +211,151 @@ class RelativeSemanticLoss(nn.Module):
             for key, val in idx_star2emb.items()
         }
 
-        cls_txts = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train',
-        'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign',
-        'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep',
-        'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella',
-        'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard',
-        'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard',
-        'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork',
-        'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange',
-        'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair',
-        'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv',
-        'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave',
-        'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase',
-        'scissors', 'teddy bear', 'hair drier', 'toothbrush', 'banner',
-        'blanket', 'branch', 'bridge', 'building-other', 'bush', 'cabinet',
-        'cage', 'cardboard', 'carpet', 'ceiling-other', 'ceiling-tile',
-        'cloth', 'clothes', 'clouds', 'counter', 'cupboard', 'curtain',
-        'desk-stuff', 'dirt', 'door-stuff', 'fence', 'floor-marble',
-        'floor-other', 'floor-stone', 'floor-tile', 'floor-wood',
-        'flower', 'fog', 'food-other', 'fruit', 'furniture-other', 'grass',
-        'gravel', 'ground-other', 'hill', 'house', 'leaves', 'light', 'mat',
-        'metal', 'mirror-stuff', 'moss', 'mountain', 'mud', 'napkin', 'net',
-        'paper', 'pavement', 'pillow', 'plant-other', 'plastic', 'platform',
-        'playingfield', 'railing', 'railroad', 'river', 'road', 'rock', 'roof',
-        'rug', 'salad', 'sand', 'sea', 'shelf', 'sky-other', 'skyscraper',
-        'snow', 'solid-other', 'stairs', 'stone', 'straw', 'structural-other',
-        'table', 'tent', 'textile-other', 'towel', 'tree', 'vegetable',
-        'wall-brick', 'wall-concrete', 'wall-other', 'wall-panel',
-        'wall-stone', 'wall-tile', 'wall-wood', 'water-other', 'waterdrops',
-        'window-blind', 'window-other', 'wood']
+        cls_txts = [
+            'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
+            'train', 'truck', 'boat', 'traffic light', 'fire hydrant',
+            'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog',
+            'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe',
+            'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
+            'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat',
+            'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
+            'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl',
+            'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot',
+            'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
+            'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop',
+            'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven',
+            'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase',
+            'scissors', 'teddy bear', 'hair drier', 'toothbrush', 'banner',
+            'blanket', 'branch', 'bridge', 'building-other', 'bush', 'cabinet',
+            'cage', 'cardboard', 'carpet', 'ceiling-other', 'ceiling-tile',
+            'cloth', 'clothes', 'clouds', 'counter', 'cupboard', 'curtain',
+            'desk-stuff', 'dirt', 'door-stuff', 'fence', 'floor-marble',
+            'floor-other', 'floor-stone', 'floor-tile', 'floor-wood', 'flower',
+            'fog', 'food-other', 'fruit', 'furniture-other', 'grass', 'gravel',
+            'ground-other', 'hill', 'house', 'leaves', 'light', 'mat', 'metal',
+            'mirror-stuff', 'moss', 'mountain', 'mud', 'napkin', 'net',
+            'paper', 'pavement', 'pillow', 'plant-other', 'plastic',
+            'platform', 'playingfield', 'railing', 'railroad', 'river', 'road',
+            'rock', 'roof', 'rug', 'salad', 'sand', 'sea', 'shelf',
+            'sky-other', 'skyscraper', 'snow', 'solid-other', 'stairs',
+            'stone', 'straw', 'structural-other', 'table', 'tent',
+            'textile-other', 'towel', 'tree', 'vegetable', 'wall-brick',
+            'wall-concrete', 'wall-other', 'wall-panel', 'wall-stone',
+            'wall-tile', 'wall-wood', 'water-other', 'waterdrops',
+            'window-blind', 'window-other', 'wood'
+        ]
+
+        # Generate class embedding row matrix (K, D)
+        cls_embs = []
+        for cls_txt in cls_txts:
+            idx = txt2idx_star[cls_txt]
+            emb = idx_star2emb[idx]
+            cls_embs.append(emb)
+        cls_embs = torch.cat(cls_embs)
+
+        # Dict for converting labels from 'idx*' maps --> 'class idx' maps
+        idx_star2cls_idx = {}
+        for cls_idx, cls_txt in enumerate(cls_txts):
+            idx_star = txt2idx_star[cls_txt]
+            idx_star2cls_idx[idx_star] = cls_idx
+
+        return idx_star2cls_idx, cls_embs
+
+    @staticmethod
+    def load_bdd100k_info(
+            txt2idx_star_path: str = './txt2idx_star.pkl',
+            idx_star2emb_path: str = './idx_star2emb.pkl') -> tuple:
+        """Returns mapping and class embeddings for the BDD100K dataset.
+        """
+        txt2idx_star = load_register(txt2idx_star_path)
+        idx_star2emb = load_register(idx_star2emb_path)
+
+        # Normalize embedding vectors
+        idx_star2emb = {
+            key: val / np.linalg.norm(val)
+            for key, val in idx_star2emb.items()
+        }
+
+        cls_txts = [
+            'unlabeled',
+            'dynamic',
+            'ego vehicle',
+            'ground',
+            'static',
+            'parking',
+            'rail track',
+            'road',
+            'sidewalk',
+            'bridge',
+            'building',
+            'fence',
+            'garage',
+            'guard rail',
+            'tunnel',
+            'wall',
+            'banner',
+            'billboard',
+            'lane divider',
+            'parking sign',
+            'pole',
+            'polegroup',
+            'street light',
+            'traffic cone',
+            'traffic device',
+            'traffic light',
+            'traffic sign',
+            'traffic sign frame',
+            'terrain',
+            'vegetation',
+            'sky',
+            'person',
+            'rider',
+            'bicycle',
+            'bus',
+            'car',
+            'caravan',
+            'motorcycle',
+            'trailer',
+            'train',
+            'truck',
+        ]
+
+        # Generate class embedding row matrix (K, D)
+        cls_embs = []
+        for cls_txt in cls_txts:
+            idx = txt2idx_star[cls_txt]
+            emb = idx_star2emb[idx]
+            cls_embs.append(emb)
+        cls_embs = torch.cat(cls_embs)
+
+        # Dict for converting labels from 'idx*' maps --> 'class idx' maps
+        idx_star2cls_idx = {}
+        for cls_idx, cls_txt in enumerate(cls_txts):
+            idx_star = txt2idx_star[cls_txt]
+            idx_star2cls_idx[idx_star] = cls_idx
+
+        return idx_star2cls_idx, cls_embs
+
+    @staticmethod
+    def load_idd_info(txt2idx_star_path: str = './txt2idx_star.pkl',
+                      idx_star2emb_path: str = './idx_star2emb.pkl') -> tuple:
+        """Returns mapping and class embeddings for the IDD dataset.
+        """
+        txt2idx_star = load_register(txt2idx_star_path)
+        idx_star2emb = load_register(idx_star2emb_path)
+
+        # Normalize embedding vectors
+        idx_star2emb = {
+            key: val / np.linalg.norm(val)
+            for key, val in idx_star2emb.items()
+        }
+
+        cls_txts = [
+            'road', 'sidewalk', 'building', 'wall', 'fence', 'pole',
+            'traffic light', 'traffic sign', 'vegetation', 'terrain', 'sky',
+            'person', 'rider', 'car', 'truck', 'bus', 'train', 'motorcycle',
+            'bicycle'
+        ]
 
         # Generate class embedding row matrix (K, D)
         cls_embs = []
