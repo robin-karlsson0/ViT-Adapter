@@ -42,6 +42,9 @@ class RelativeSemanticLoss(nn.Module):
         elif dataset == 'idd':
             idx_star2cls_idx, cls_embs = self.load_idd_info(
                 txt2idx_star_path, idx_star2emb_path)
+        elif dataset == 'sun_rgbd':
+            idx_star2cls_idx, cls_embs = self.load_sun_rgbd_info(
+                txt2idx_star_path, idx_star2emb_path)
         else:
             raise IOError(f'Given dataset not implemented ({dataset})')
 
@@ -355,6 +358,46 @@ class RelativeSemanticLoss(nn.Module):
             'traffic light', 'traffic sign', 'vegetation', 'terrain', 'sky',
             'person', 'rider', 'car', 'truck', 'bus', 'train', 'motorcycle',
             'bicycle'
+        ]
+
+        # Generate class embedding row matrix (K, D)
+        cls_embs = []
+        for cls_txt in cls_txts:
+            idx = txt2idx_star[cls_txt]
+            emb = idx_star2emb[idx]
+            cls_embs.append(emb)
+        cls_embs = torch.cat(cls_embs)
+
+        # Dict for converting labels from 'idx*' maps --> 'class idx' maps
+        idx_star2cls_idx = {}
+        for cls_idx, cls_txt in enumerate(cls_txts):
+            idx_star = txt2idx_star[cls_txt]
+            idx_star2cls_idx[idx_star] = cls_idx
+
+        return idx_star2cls_idx, cls_embs
+
+    @staticmethod
+    def load_sun_rgbd_info(
+            txt2idx_star_path: str = './txt2idx_star.pkl',
+            idx_star2emb_path: str = './idx_star2emb.pkl') -> tuple:
+        """Returns mapping and class embeddings for the SUN RGB-D dataset.
+        """
+        txt2idx_star = load_register(txt2idx_star_path)
+        idx_star2emb = load_register(idx_star2emb_path)
+
+        # Normalize embedding vectors
+        idx_star2emb = {
+            key: val / np.linalg.norm(val)
+            for key, val in idx_star2emb.items()
+        }
+
+        cls_txts = [
+            'wall', 'floor', 'cabinet', 'bed', 'chair', 'sofa', 'table',
+            'door', 'window', 'bookshelf', 'picture', 'counter', 'blinds',
+            'desk', 'shelves', 'curtain', 'dresser', 'pillow', 'mirror',
+            'floor_mat', 'clothes', 'ceiling', 'books', 'fridge', 'tv',
+            'paper', 'towel', 'shower_curtain', 'box', 'whiteboard', 'person',
+            'night_stand', 'toilet', 'sink', 'lamp', 'bathtub', 'bag'
         ]
 
         # Generate class embedding row matrix (K, D)
