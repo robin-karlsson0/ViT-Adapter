@@ -35,6 +35,9 @@ cd ops & sh make.sh # compile deformable attention
 pip install ftfy regex tqdm
 pip install git+https://github.com/openai/CLIP.git
 
+# Install SBERT
+pip install -U sentence-transformers
+
 # For baseline evaluation
 pip install git+https://github.com/facebookresearch/segment-anything.git
 
