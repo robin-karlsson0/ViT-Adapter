@@ -45,6 +45,12 @@ class RelativeSemanticLoss(nn.Module):
         elif dataset == 'sun_rgbd':
             idx_star2cls_idx, cls_embs = self.load_sun_rgbd_info(
                 txt2idx_star_path, idx_star2emb_path)
+        elif dataset == 'concat':
+            idx_star2cls_idx, cls_embs = self.load_concat_info(
+                txt2idx_star_path, idx_star2emb_path)
+        elif dataset == 'concat_cityscapes_split':
+            idx_star2cls_idx, cls_embs = self.load_concat_cityscapes_split_info(
+                txt2idx_star_path, idx_star2emb_path)
         else:
             raise IOError(f'Given dataset not implemented ({dataset})')
 
@@ -399,6 +405,186 @@ class RelativeSemanticLoss(nn.Module):
             'paper', 'towel', 'shower_curtain', 'box', 'whiteboard', 'person',
             'night_stand', 'toilet', 'sink', 'lamp', 'bathtub', 'bag'
         ]
+
+        # Generate class embedding row matrix (K, D)
+        cls_embs = []
+        for cls_txt in cls_txts:
+            idx = txt2idx_star[cls_txt]
+            emb = idx_star2emb[idx]
+            cls_embs.append(emb)
+        cls_embs = torch.cat(cls_embs)
+
+        # Dict for converting labels from 'idx*' maps --> 'class idx' maps
+        idx_star2cls_idx = {}
+        for cls_idx, cls_txt in enumerate(cls_txts):
+            idx_star = txt2idx_star[cls_txt]
+            idx_star2cls_idx[idx_star] = cls_idx
+
+        return idx_star2cls_idx, cls_embs
+
+    @staticmethod
+    def load_concat_info(
+            txt2idx_star_path: str = './txt2idx_star.pkl',
+            idx_star2emb_path: str = './idx_star2emb.pkl') -> tuple:
+        """Returns mapping and class embeddings for the SUN RGB-D dataset.
+        """
+        txt2idx_star = load_register(txt2idx_star_path)
+        idx_star2emb = load_register(idx_star2emb_path)
+
+        # Normalize embedding vectors
+        idx_star2emb = {
+            key: val / np.linalg.norm(val)
+            for key, val in idx_star2emb.items()
+        }
+
+        cls_txts = []
+
+        # ADE Challenge 2017
+        cls_txts += [
+            'wall', 'building', 'sky', 'floor', 'tree', 'ceiling', 'road',
+            'bed ', 'windowpane', 'grass', 'cabinet', 'sidewalk', 'person',
+            'earth', 'door', 'table', 'mountain', 'plant', 'curtain', 'chair',
+            'car', 'water', 'painting', 'sofa', 'shelf', 'house', 'sea',
+            'mirror', 'rug', 'field', 'armchair', 'seat', 'fence', 'desk',
+            'rock', 'wardrobe', 'lamp', 'bathtub', 'railing', 'cushion',
+            'base', 'box', 'column', 'signboard', 'chest of drawers',
+            'counter', 'sand', 'sink', 'skyscraper', 'fireplace',
+            'refrigerator', 'grandstand', 'path', 'stairs', 'runway', 'case',
+            'pool table', 'pillow', 'screen door', 'stairway', 'river',
+            'bridge', 'bookcase', 'blind', 'coffee table', 'toilet', 'flower',
+            'book', 'hill', 'bench', 'countertop', 'stove', 'palm',
+            'kitchen island', 'computer', 'swivel chair', 'boat', 'bar',
+            'arcade machine', 'hovel', 'bus', 'towel', 'light', 'truck',
+            'tower', 'chandelier', 'awning', 'streetlight', 'booth',
+            'television receiver', 'airplane', 'dirt track', 'apparel', 'pole',
+            'land', 'bannister', 'escalator', 'ottoman', 'bottle', 'buffet',
+            'poster', 'stage', 'van', 'ship', 'fountain', 'conveyer belt',
+            'canopy', 'washer', 'plaything', 'swimming pool', 'stool',
+            'barrel', 'basket', 'waterfall', 'tent', 'bag', 'minibike',
+            'cradle', 'oven', 'ball', 'food', 'step', 'tank', 'trade name',
+            'microwave', 'pot', 'animal', 'bicycle', 'lake', 'dishwasher',
+            'screen', 'blanket', 'sculpture', 'hood', 'sconce', 'vase',
+            'traffic light', 'tray', 'ashcan', 'fan', 'pier', 'crt screen',
+            'plate', 'monitor', 'bulletin board', 'shower', 'radiator',
+            'glass', 'clock', 'flag'
+        ]
+
+        # BDD100K
+        cls_txts += [
+            'unlabeled', 'dynamic', 'ego vehicle', 'ground', 'static',
+            'parking', 'rail track', 'road', 'sidewalk', 'bridge', 'building',
+            'fence', 'garage', 'guard rail', 'tunnel', 'wall', 'banner',
+            'billboard', 'lane divider', 'parking sign', 'pole', 'polegroup',
+            'street light', 'traffic cone', 'traffic device', 'traffic light',
+            'traffic sign', 'traffic sign frame', 'terrain', 'vegetation',
+            'sky', 'person', 'rider', 'bicycle', 'bus', 'car', 'caravan',
+            'motorcycle', 'trailer', 'train', 'truck'
+        ]
+
+        # Cityscapes
+        cls_txts += [
+            'road', 'sidewalk', 'building', 'wall', 'fence', 'pole',
+            'traffic light', 'traffic sign', 'vegetation', 'terrain', 'sky',
+            'person', 'rider', 'car', 'truck', 'bus', 'train', 'motorcycle',
+            'bicycle'
+        ]
+
+        # IDD
+        cls_txts += [
+            'road', 'sidewalk', 'building', 'wall', 'fence', 'pole',
+            'traffic light', 'traffic sign', 'vegetation', 'terrain', 'sky',
+            'person', 'rider', 'car', 'truck', 'bus', 'train', 'motorcycle',
+            'bicycle'
+        ]
+
+        # Mapillary Vistas
+        cls_txts += [
+            'Bird', 'Ground Animal', 'Curb', 'Fence', 'Guard Rail', 'Barrier',
+            'Wall', 'Bike Lane', 'Crosswalk - Plain', 'Curb Cut', 'Parking',
+            'Pedestrian Area', 'Rail Track', 'Road', 'Service Lane',
+            'Sidewalk', 'Bridge', 'Building', 'Tunnel', 'Person', 'Bicyclist',
+            'Motorcyclist', 'Other Rider', 'Lane Marking - Crosswalk',
+            'Lane Marking - General', 'Mountain', 'Sand', 'Sky', 'Snow',
+            'Terrain', 'Vegetation', 'Water', 'Banner', 'Bench', 'Bike Rack',
+            'Billboard', 'Catch Basin', 'CCTV Camera', 'Fire Hydrant',
+            'Junction Box', 'Mailbox', 'Manhole', 'Phone Booth', 'Pothole',
+            'Street Light', 'Pole', 'Traffic Sign Frame', 'Utility Pole',
+            'Traffic Light', 'Traffic Sign (Back)', 'Traffic Sign (Front)',
+            'Trash Can', 'Bicycle', 'Boat', 'Bus', 'Car', 'Caravan',
+            'Motorcycle', 'On Rails', 'Other Vehicle', 'Trailer', 'Truck',
+            'Wheeled Slow', 'Car Mount', 'Ego Vehicle', 'Unlabeled'
+        ]
+
+        # SUN RGB-D
+        cls_txts += [
+            'wall', 'floor', 'cabinet', 'bed', 'chair', 'sofa', 'table',
+            'door', 'window', 'bookshelf', 'picture', 'counter', 'blinds',
+            'desk', 'shelves', 'curtain', 'dresser', 'pillow', 'mirror',
+            'floor_mat', 'clothes', 'ceiling', 'books', 'fridge', 'tv',
+            'paper', 'towel', 'shower_curtain', 'box', 'whiteboard', 'person',
+            'night_stand', 'toilet', 'sink', 'lamp', 'bathtub', 'bag'
+        ]
+
+        # Remove duplicates
+        cls_txts = tuple(set(cls_txts))
+
+        # Generate class embedding row matrix (K, D)
+        cls_embs = []
+        for cls_txt in cls_txts:
+            idx = txt2idx_star[cls_txt]
+            emb = idx_star2emb[idx]
+            cls_embs.append(emb)
+        cls_embs = torch.cat(cls_embs)
+
+        # Dict for converting labels from 'idx*' maps --> 'class idx' maps
+        idx_star2cls_idx = {}
+        for cls_idx, cls_txt in enumerate(cls_txts):
+            idx_star = txt2idx_star[cls_txt]
+            idx_star2cls_idx[idx_star] = cls_idx
+
+        return idx_star2cls_idx, cls_embs
+
+    @staticmethod
+    def load_concat_cityscapes_split_info(
+            txt2idx_star_path: str = './txt2idx_star.pkl',
+            idx_star2emb_path: str = './idx_star2emb.pkl') -> tuple:
+        """Returns mapping and class embeddings for the Exp03 concatenated
+        Cityscapes splits.
+        """
+        txt2idx_star = load_register(txt2idx_star_path)
+        idx_star2emb = load_register(idx_star2emb_path)
+
+        # Normalize embedding vectors
+        idx_star2emb = {
+            key: val / np.linalg.norm(val)
+            for key, val in idx_star2emb.items()
+        }
+
+        cls_txts = []
+
+        # Original
+        cls_txts += [
+            'ego vehicle', 'static', 'dynamic', 'ground', 'road', 'sidewalk',
+            'parking', 'rail track', 'building', 'wall', 'fence', 'guard rail',
+            'bridge', 'tunnel', 'pole', 'polegroup', 'traffic light',
+            'traffic sign', 'vegetation', 'terrain', 'sky', 'person', 'rider',
+            'car', 'truck', 'bus', 'caravan', 'trailer', 'train', 'motorcycle',
+            'bicycle', 'license plate'
+        ]
+
+        # Upper category
+        cls_txts += [
+            'vehicle', 'other', 'surface', 'structure', 'fauna', 'living'
+        ]
+
+        # Material
+        cls_txts += ['metal', 'dirt', 'asphalt', 'concrete', 'organism']
+
+        # Type  NOTE: Subsumed by 'original' labels
+        # cls_txts += []
+
+        # Remove duplicates
+        cls_txts = tuple(set(cls_txts))
 
         # Generate class embedding row matrix (K, D)
         cls_embs = []

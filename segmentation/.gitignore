@@ -170,3 +170,9 @@ checkpoints/
 work_dirs/
 ops
 pretrained/
+conv_*
+eval_*
+plot_*
+run.sh
+*.out
+
