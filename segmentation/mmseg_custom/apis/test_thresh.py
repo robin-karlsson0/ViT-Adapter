@@ -43,8 +43,7 @@ def single_gpu_test_thresh(model,
                            opacity=0.5,
                            pre_eval=False,
                            format_only=False,
-                           format_args={},
-                           thresh_smpls=500):
+                           format_args={}):
     """Test with single GPU by progressive mode.
 
     Args:
@@ -83,7 +82,7 @@ def single_gpu_test_thresh(model,
     model.eval()
     results = []
     dataset = data_loader.dataset
-    dataset_thresh = data_loader_thresh.dataset
+    dataset_thresh = data_loader_thresh.dataset.dataset  # Subsampled dataset
     # The pipeline about how the data_loader retrieval samples from dataset:
     # sampler -> batch_sampler -> indices
     # The indices are passed to dataset_fetcher to get data from dataset.
@@ -99,8 +98,7 @@ def single_gpu_test_thresh(model,
     sim_poss = [[] for _ in range(K)]
     sim_negs = [[] for _ in range(K)]
 
-    prog_bar = mmcv.ProgressBar(thresh_smpls)
-    idx = 1
+    prog_bar = mmcv.ProgressBar(len(data_loader_thresh))
     for batch_indices, data in zip(loader_indices_thresh, data_loader_thresh):
         with torch.no_grad():
             result = model(return_loss=False, **data)
@@ -115,10 +113,6 @@ def single_gpu_test_thresh(model,
         batch_size = len(result)
         for _ in range(batch_size):
             prog_bar.update()
-
-        if idx == thresh_smpls:
-            break
-        idx += 1
 
     # Compute thresholds as optimal decision boundary points
     sim_threshs = np.zeros(K)
@@ -197,8 +191,7 @@ def multi_gpu_test_thresh(model,
                           efficient_test=False,
                           pre_eval=False,
                           format_only=False,
-                          format_args={},
-                          thresh_smpls=500):
+                          format_args={}):
     """Test model with multiple gpus by progressive mode.
 
     This method tests model with multiple gpus and collects the results
@@ -243,7 +236,7 @@ def multi_gpu_test_thresh(model,
     model.eval()
     results = []
     dataset = data_loader.dataset
-    dataset_thresh = data_loader_thresh.dataset
+    dataset_thresh = data_loader_thresh.dataset.dataset  # Subsampled dataset
     # The pipeline about how the data_loader retrieval samples from dataset:
     # sampler -> batch_sampler -> indices
     # The indices are passed to dataset_fetcher to get data from dataset.
@@ -264,7 +257,7 @@ def multi_gpu_test_thresh(model,
 
     rank, world_size = get_dist_info()
     if rank == 0:
-        prog_bar = mmcv.ProgressBar(len(dataset))
+        prog_bar = mmcv.ProgressBar(len(data_loader_thresh))
 
     for batch_indices, data in zip(loader_indices_thresh, data_loader_thresh):
         with torch.no_grad():
@@ -281,10 +274,6 @@ def multi_gpu_test_thresh(model,
         for _ in range(batch_size):
             prog_bar.update()
 
-        if idx == thresh_smpls:
-            break
-        idx += 1
-
     # Compute thresholds as optimal decision boundary points
     sim_threshs = np.zeros(K)
     for k in range(K):
@@ -293,6 +282,13 @@ def multi_gpu_test_thresh(model,
         if len(sim_pos) > 0 and len(sim_neg) > 0:
             dec_b = dataset_thresh.comp_logreg_decision_point(sim_pos, sim_neg)
             sim_threshs[k] = dec_b
+    # Clip thresholds to probabilistic values
+    sim_threshs = [min(1, max(0, s)) for s in sim_threshs]
+
+    if rank == 0:
+        print('\nSimilarity thresholds')
+        for idx, sim in enumerate(sim_threshs):
+            print('\t', idx, '\t', f'{sim:.3f}')
 
     if rank == 0:
         prog_bar = mmcv.ProgressBar(len(dataset))

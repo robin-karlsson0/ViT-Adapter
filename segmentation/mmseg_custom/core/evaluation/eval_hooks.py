@@ -31,7 +31,6 @@ class EvalHookThresh(_EvalHook):
                  efficient_test=False,
                  pre_eval=False,
                  dataloader_thresh=None,
-                 thresh_smpls=500,
                  **kwargs):
         super().__init__(*args, by_epoch=by_epoch, **kwargs)
         self.pre_eval = pre_eval
@@ -44,7 +43,6 @@ class EvalHookThresh(_EvalHook):
 
         # For computing sufficient similarity thresholds
         self.dataloader_thresh = dataloader_thresh
-        self.thresh_smpls = thresh_smpls
 
     def _do_evaluate(self, runner):
         """perform evaluation and save ckpt."""
@@ -56,8 +54,7 @@ class EvalHookThresh(_EvalHook):
                                          self.dataloader,
                                          self.dataloader_thresh,
                                          show=False,
-                                         pre_eval=self.pre_eval,
-                                         thresh_smpls=self.thresh_smpls)
+                                         pre_eval=self.pre_eval)
         runner.log_buffer.clear()
         runner.log_buffer.output['eval_iter_num'] = len(self.dataloader)
         key_score = self.evaluate(runner, results)

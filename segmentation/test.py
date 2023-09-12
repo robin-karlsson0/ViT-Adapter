@@ -247,6 +247,11 @@ def main():
             cfg_data_train_eval = cfg.data.train
             cfg_data_train_eval.pipeline = cfg.data.test.pipeline
             dataset_thresh = build_dataset(cfg_data_train_eval)
+            # Randomly subsampled dataset
+            rnd_idxs = np.random.choice(np.arange(0, len(dataset_thresh)),
+                                        size=args.thresh_smpls,
+                                        replace=False)
+            dataset_thresh = torch.utils.data.Subset(dataset_thresh, rnd_idxs)
             data_loader_thresh = build_dataloader(
                 dataset_thresh,
                 samples_per_gpu=1,
@@ -264,7 +269,6 @@ def main():
                 pre_eval=args.eval is not None and not eval_on_format_results,
                 format_only=args.format_only or eval_on_format_results,
                 format_args=eval_kwargs,
-                thresh_smpls=args.thresh_smpls,
             )
         else:
             results = single_gpu_test(model,

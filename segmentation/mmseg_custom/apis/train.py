@@ -140,19 +140,26 @@ def train_segmentor(model,
             workers_per_gpu=cfg.data.workers_per_gpu,
             dist=distributed,
             shuffle=False)
+        eval_cfg = cfg.get('evaluation', {})
+        eval_cfg['by_epoch'] = cfg.runner['type'] != 'IterBasedRunner'
 
         cfg_data_train_eval = cfg.data.train
         cfg_data_train_eval.pipeline = cfg.data.val.pipeline
         val_dataset_thresh = build_dataset(cfg_data_train_eval,
                                            dict(test_mode=True))
+        # Randomly subsampled dataset
+        rnd_idxs = np.random.choice(np.arange(0, len(val_dataset_thresh)),
+                                    size=eval_cfg.thresh_smpls,
+                                    replace=False)
+        val_dataset_thresh = torch.utils.data.Subset(val_dataset_thresh,
+                                                     rnd_idxs)
         val_dataloader_thresh = build_dataloader(
             val_dataset_thresh,
             samples_per_gpu=1,
             workers_per_gpu=cfg.data.workers_per_gpu,
             dist=distributed,
-            shuffle=True)  # Random subsampling for memory conservation
-        eval_cfg = cfg.get('evaluation', {})
-        eval_cfg['by_epoch'] = cfg.runner['type'] != 'IterBasedRunner'
+            shuffle=False)
+
         # eval_hook = DistEvalHook if distributed else EvalHook
         # # In this PR (https://github.com/open-mmlab/mmcv/pull/1193), the
         # # priority of IterTimerHook has been modified from 'NORMAL' to 'LOW'.
