@@ -85,7 +85,6 @@ class DistEvalHookThresh(_DistEvalHook):
                  efficient_test=False,
                  pre_eval=False,
                  dataloader_thresh=None,
-                 thresh_smpls=500,
                  **kwargs):
         super().__init__(*args, by_epoch=by_epoch, **kwargs)
         self.pre_eval = pre_eval
@@ -98,7 +97,6 @@ class DistEvalHookThresh(_DistEvalHook):
 
         # For computing sufficient similarity thresholds
         self.dataloader_thresh = dataloader_thresh
-        self.thresh_smpls = thresh_smpls
 
     def _do_evaluate(self, runner):
         """perform evaluation and save ckpt."""
@@ -128,8 +126,7 @@ class DistEvalHookThresh(_DistEvalHook):
                                         self.dataloader_thresh,
                                         tmpdir=tmpdir,
                                         gpu_collect=self.gpu_collect,
-                                        pre_eval=self.pre_eval,
-                                        thresh_smpls=self.thresh_smpls)
+                                        pre_eval=self.pre_eval)
 
         runner.log_buffer.clear()
 

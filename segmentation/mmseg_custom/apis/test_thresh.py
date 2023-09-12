@@ -270,9 +270,10 @@ def multi_gpu_test_thresh(model,
             sim_poss[k].extend(sim_pos[k])
             sim_negs[k].extend(sim_neg[k])
 
-        batch_size = len(result)
-        for _ in range(batch_size):
-            prog_bar.update()
+        if rank == 0:
+            batch_size = len(result)
+            for _ in range(batch_size):
+                prog_bar.update()
 
     # Compute thresholds as optimal decision boundary points
     sim_threshs = np.zeros(K)
