@@ -128,6 +128,8 @@ def single_gpu_test_thresh(model,
         if len(sim_pos) > 0 and len(sim_neg) > 0:
             dec_b = dataset_thresh.comp_logreg_decision_point(sim_pos, sim_neg)
             sim_threshs[k] = dec_b
+    # Clip thresholds to probabilistic values
+    sim_threshs = [min(1, max(0, s)) for s in sim_threshs]
 
     print('\nSimilarity thresholds')
     for idx, sim in enumerate(sim_threshs):
