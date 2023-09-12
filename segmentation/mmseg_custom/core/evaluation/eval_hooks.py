@@ -8,7 +8,7 @@ from mmcv.runner import EvalHook as _EvalHook
 from torch.nn.modules.batchnorm import _BatchNorm
 
 
-class EvalHook(_EvalHook):
+class EvalHookThresh(_EvalHook):
     """Single GPU EvalHook, with efficient test support.
 
     Args:
@@ -31,6 +31,7 @@ class EvalHook(_EvalHook):
                  efficient_test=False,
                  pre_eval=False,
                  dataloader_thresh=None,
+                 thresh_smpls=500,
                  **kwargs):
         super().__init__(*args, by_epoch=by_epoch, **kwargs)
         self.pre_eval = pre_eval
@@ -41,16 +42,22 @@ class EvalHook(_EvalHook):
                 'with ``pre_eval=True`` as argument for ``single_gpu_test()`` '
                 'function')
 
+        # For computing sufficient similarity thresholds
+        self.dataloader_thresh = dataloader_thresh
+        self.thresh_smpls = thresh_smpls
+
     def _do_evaluate(self, runner):
         """perform evaluation and save ckpt."""
         if not self._should_evaluate(runner):
             return
 
-        from mmseg.apis import single_gpu_test
-        results = single_gpu_test(runner.model,
-                                  self.dataloader,
-                                  show=False,
-                                  pre_eval=self.pre_eval)
+        from mmseg_custom.apis.test_thresh import single_gpu_test_thresh
+        results = single_gpu_test_thresh(runner.model,
+                                         self.dataloader,
+                                         self.dataloader_thresh,
+                                         show=False,
+                                         pre_eval=self.pre_eval,
+                                         thresh_smpls=self.thresh_smpls)
         runner.log_buffer.clear()
         runner.log_buffer.output['eval_iter_num'] = len(self.dataloader)
         key_score = self.evaluate(runner, results)
@@ -58,7 +65,7 @@ class EvalHook(_EvalHook):
             self._save_ckpt(runner, key_score)
 
 
-class DistEvalHook(_DistEvalHook):
+class DistEvalHookThresh(_DistEvalHook):
     """Distributed EvalHook, with efficient test support.
 
     Args:
@@ -80,6 +87,8 @@ class DistEvalHook(_DistEvalHook):
                  by_epoch=False,
                  efficient_test=False,
                  pre_eval=False,
+                 dataloader_thresh=None,
+                 thresh_smpls=500,
                  **kwargs):
         super().__init__(*args, by_epoch=by_epoch, **kwargs)
         self.pre_eval = pre_eval
@@ -89,6 +98,10 @@ class DistEvalHook(_DistEvalHook):
                 'is deprecated, the evaluation hook is CPU memory friendly '
                 'with ``pre_eval=True`` as argument for ``multi_gpu_test()`` '
                 'function')
+
+        # For computing sufficient similarity thresholds
+        self.dataloader_thresh = dataloader_thresh
+        self.thresh_smpls = thresh_smpls
 
     def _do_evaluate(self, runner):
         """perform evaluation and save ckpt."""
@@ -112,12 +125,14 @@ class DistEvalHook(_DistEvalHook):
         if tmpdir is None:
             tmpdir = osp.join(runner.work_dir, '.eval_hook')
 
-        from mmseg.apis import multi_gpu_test
-        results = multi_gpu_test(runner.model,
-                                 self.dataloader,
-                                 tmpdir=tmpdir,
-                                 gpu_collect=self.gpu_collect,
-                                 pre_eval=self.pre_eval)
+        from mmseg_custom.apis.test_thresh import multi_gpu_test_thresh
+        results = multi_gpu_test_thresh(runner.model,
+                                        self.dataloader,
+                                        self.dataloader_thresh,
+                                        tmpdir=tmpdir,
+                                        gpu_collect=self.gpu_collect,
+                                        pre_eval=self.pre_eval,
+                                        thresh_smpls=self.thresh_smpls)
 
         runner.log_buffer.clear()
 
