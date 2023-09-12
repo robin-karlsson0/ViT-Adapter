@@ -2,21 +2,30 @@
 import argparse
 import os
 import os.path as osp
+import random
 import shutil
 import time
 import warnings
 
 import mmcv
-import mmcv_custom  # noqa: F401,F403
-import mmseg_custom  # noqa: F401,F403
+import numpy as np
 import torch
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 from mmcv.runner import (get_dist_info, init_dist, load_checkpoint,
                          wrap_fp16_model)
 from mmcv.utils import DictAction
 from mmseg.apis import multi_gpu_test, single_gpu_test
-from mmseg_custom.datasets import build_dataloader, build_dataset
 from mmseg.models import build_segmentor
+
+import mmcv_custom  # noqa: F401,F403
+import mmseg_custom  # noqa: F401,F403
+from mmseg_custom.apis.test_thresh import (multi_gpu_test_thresh,
+                                           single_gpu_test_thresh)
+from mmseg_custom.datasets import build_dataloader, build_dataset
+
+random.seed(14)
+torch.manual_seed(14)
+np.random.seed(14)
 
 
 def parse_args():
@@ -89,6 +98,17 @@ def parse_args():
         default=0.5,
         help='Opacity of painted segmentation map. In (0, 1] range.')
     parser.add_argument('--local_rank', type=int, default=0)
+    parser.add_argument(
+        '--test_thresh',
+        type=int,
+        default=0,
+        help=
+        'Evaluate by sim. threshold optimized over the training dataset if 1.')
+    parser.add_argument(
+        '--thresh_smpls',
+        type=int,
+        default=500,
+        help='Number of training samples to estimate sufficient sim threshs.')
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
@@ -222,32 +242,80 @@ def main():
 
     if not distributed:
         model = MMDataParallel(model, device_ids=[0])
-        results = single_gpu_test(model,
-                                  data_loader,
-                                  args.show,
-                                  args.show_dir,
-                                  False,
-                                  args.opacity,
-                                  pre_eval=args.eval is not None
-                                  and not eval_on_format_results,
-                                  format_only=args.format_only
-                                  or eval_on_format_results,
-                                  format_args=eval_kwargs)
+        if args.test_thresh:
+            # Custom training dataset w. eval config
+            cfg_data_train_eval = cfg.data.train
+            cfg_data_train_eval.pipeline = cfg.data.test.pipeline
+            dataset_thresh = build_dataset(cfg_data_train_eval)
+            data_loader_thresh = build_dataloader(
+                dataset_thresh,
+                samples_per_gpu=1,
+                workers_per_gpu=cfg.data.workers_per_gpu,
+                dist=distributed,
+                shuffle=True)  # Random subsampling for memory conservation
+            results = single_gpu_test_thresh(
+                model,
+                data_loader,
+                data_loader_thresh,
+                args.show,
+                args.show_dir,
+                False,
+                args.opacity,
+                pre_eval=args.eval is not None and not eval_on_format_results,
+                format_only=args.format_only or eval_on_format_results,
+                format_args=eval_kwargs,
+                thresh_smpls=args.thresh_smpls,
+            )
+        else:
+            results = single_gpu_test(model,
+                                      data_loader,
+                                      args.show,
+                                      args.show_dir,
+                                      False,
+                                      args.opacity,
+                                      pre_eval=args.eval is not None
+                                      and not eval_on_format_results,
+                                      format_only=args.format_only
+                                      or eval_on_format_results,
+                                      format_args=eval_kwargs)
     else:
         model = MMDistributedDataParallel(
             model.cuda(),
             device_ids=[torch.cuda.current_device()],
             broadcast_buffers=False)
-        results = multi_gpu_test(model,
-                                 data_loader,
-                                 args.tmpdir,
-                                 args.gpu_collect,
-                                 False,
-                                 pre_eval=args.eval is not None
-                                 and not eval_on_format_results,
-                                 format_only=args.format_only
-                                 or eval_on_format_results,
-                                 format_args=eval_kwargs)
+        if args.test_thresh:
+            # Custom training dataset w. eval config
+            cfg_data_train_eval = cfg.data.train
+            cfg_data_train_eval.pipeline = cfg.data.test.pipeline
+            dataset_thresh = build_dataset(cfg_data_train_eval)
+            data_loader_thresh = build_dataloader(
+                dataset,
+                samples_per_gpu=1,
+                workers_per_gpu=cfg.data.workers_per_gpu,
+                dist=distributed,
+                shuffle=True)  # Random subsampling for memory conservation
+            results = multi_gpu_test_thresh(model,
+                                            data_loader,
+                                            data_loader_thresh,
+                                            args.tmpdir,
+                                            args.gpu_collect,
+                                            False,
+                                            pre_eval=args.eval is not None
+                                            and not eval_on_format_results,
+                                            format_only=args.format_only
+                                            or eval_on_format_results,
+                                            format_args=eval_kwargs)
+        else:
+            results = multi_gpu_test(model,
+                                     data_loader,
+                                     args.tmpdir,
+                                     args.gpu_collect,
+                                     False,
+                                     pre_eval=args.eval is not None
+                                     and not eval_on_format_results,
+                                     format_only=args.format_only
+                                     or eval_on_format_results,
+                                     format_args=eval_kwargs)
 
     rank, _ = get_dist_info()
     if rank == 0:

@@ -51,6 +51,6 @@ data = dict(samples_per_gpu=2,
                      pipeline=test_pipeline),
             test=dict(type=dataset_type,
                       data_root=data_root,
-                      img_dir='imgs/test',
-                      ann_dir='anns/test',
+                      img_dir='imgs/val',
+                      ann_dir='anns/val',
                       pipeline=test_pipeline))
