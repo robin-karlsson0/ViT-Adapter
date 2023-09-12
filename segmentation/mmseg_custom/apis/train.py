@@ -8,12 +8,12 @@ import torch.distributed as dist
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 from mmcv.runner import HOOKS, build_optimizer, build_runner, get_dist_info
 from mmcv.utils import build_from_cfg
+from mmseg.utils import get_root_logger
 
-from mmseg.core import DistEvalHook, EvalHook
+from mmseg_custom.core.evaluation.eval_hooks import DistEvalHook, EvalHook
 # from mmseg.datasets import build_dataloader, build_dataset
 # from mmseg.datasets import build_dataset
 from mmseg_custom.datasets import build_dataloader, build_dataset
-from mmseg.utils import get_root_logger
 
 
 def init_random_seed(seed=None, device='cuda'):
