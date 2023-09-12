@@ -129,6 +129,10 @@ def single_gpu_test_thresh(model,
             dec_b = dataset_thresh.comp_logreg_decision_point(sim_pos, sim_neg)
             sim_threshs[k] = dec_b
 
+    print('\nSimilarity thresholds')
+    for idx, sim in enumerate(sim_threshs):
+        print('\t', idx, '\t', f'{sim:.3f}')
+
     prog_bar = mmcv.ProgressBar(len(dataset))
     for batch_indices, data in zip(loader_indices, data_loader):
         with torch.no_grad():
