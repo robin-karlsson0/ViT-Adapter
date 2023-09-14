@@ -167,7 +167,7 @@ def single_gpu_test_thresh(model,
         if len(sim_pos) > 0 and len(sim_neg) > 0:
             dec_b = dataset_thresh.comp_logreg_decision_point(sim_pos, sim_neg)
             sim_threshs[k] = dec_b
-    # Clip thresholds to probabilistic values
+    # Clip similarity thresholds
     sim_threshs = [
         min(1, max(-1, s)) if s is not None else s for s in sim_threshs
     ]
@@ -329,13 +329,14 @@ def multi_gpu_test_thresh(model,
         if len(sim_pos) > 0 and len(sim_neg) > 0:
             dec_b = dataset_thresh.comp_logreg_decision_point(sim_pos, sim_neg)
             sim_threshs[k] = dec_b
-    # Clip thresholds to probabilistic values
-    sim_threshs = [min(1, max(0, s)) for s in sim_threshs]
+    # Clip similarity thresholds
+    sim_threshs = [
+        min(1, max(-1, s)) if s is not None else s for s in sim_threshs
+    ]
 
     if rank == 0:
-        print('\nSimilarity thresholds')
-        for idx, sim in enumerate(sim_threshs):
-            print('\t', idx, '\t', f'{sim:.3f}')
+        txts = dataset_thresh.CLASSES
+        print_sim_treshs(sim_threshs, txts, sim_poss, sim_negs)
 
     if rank == 0:
         prog_bar = mmcv.ProgressBar(len(dataset))
