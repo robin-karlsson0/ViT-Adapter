@@ -254,6 +254,11 @@ class CompSemCityscapesDataset(CustomDataset):
                 continue
             cls_idx = self.idx_star2cls_idx[idx_star]
 
+            # Skip evaluating semantics without a threshold value
+            sim_thresh = sim_treshs[cls_idx]
+            if sim_thresh is None:
+                continue
+
             # Boolean annotation mask (H, W) for current category
             label_cls = np.zeros_like(label, dtype=bool)
             mask = label == idx_star
@@ -261,7 +266,7 @@ class CompSemCityscapesDataset(CustomDataset):
 
             # Boolean prediction mask (H, W) by sufficient similarity
             pred_seg = np.zeros_like(label_cls, dtype=bool)
-            mask = pred_sims[cls_idx] > sim_treshs[cls_idx]
+            mask = pred_sims[cls_idx] > sim_thresh
             pred_seg[mask] = True
 
             # NOTE Need to remove 'ignore' idx from mask

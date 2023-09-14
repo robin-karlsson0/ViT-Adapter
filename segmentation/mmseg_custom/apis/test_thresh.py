@@ -3,14 +3,13 @@ import os.path as osp
 import tempfile
 import warnings
 
-import matplotlib.pyplot as plt  # TMP
 import mmcv
 import numpy as np
+import pandas as pd
 import torch
 from mmcv.engine import collect_results_cpu, collect_results_gpu
 from mmcv.image import tensor2imgs
 from mmcv.runner import get_dist_info
-from sklearn.linear_model import LogisticRegression  # TMP
 
 
 def np2tmp(array, temp_file_name=None, tmpdir=None):
@@ -32,6 +31,52 @@ def np2tmp(array, temp_file_name=None, tmpdir=None):
                                                      dir=tmpdir).name
     np.save(temp_file_name, array)
     return temp_file_name
+
+
+def print_sim_treshs(sim_threshs: list, txts: list, sim_poss: list,
+                     sim_negs: list):
+    """
+    Args:
+        sim_threshs: List of similarity thresholds for each category.
+        txts: List of category descriptions.
+        sim_poss: List of similarity values for true elements.
+        sim_negs: List of similarity values for false elements.
+    """
+    print('\nSimilarity thresholds (idx, txt, thresh, correct ratio pos|neg,'
+          'num pos|neg)')
+    entries = []
+    for idx, (txt, sim) in enumerate(zip(txts, sim_threshs)):
+        if len(sim_poss[idx]) == 0 and len(sim_negs[idx]) == 0:
+            continue
+
+        sim_pos = np.array(sim_poss[idx])
+        sim_neg = np.array(sim_negs[idx])
+        num_pos = len(sim_pos)
+        num_neg = len(sim_neg)
+        ratio_true = np.sum(sim_pos > sim) / num_pos if num_pos > 0 else None
+        ratio_false = np.sum(sim_neg < sim) / num_neg if num_neg > 0 else None
+
+        entry = {
+            'txt': [txt],
+            'sim': [sim],
+            'ratio_true': [ratio_true],
+            'ratio_false': [ratio_false],
+            'num_pos': [num_pos],
+            'num_false': [num_neg]
+        }
+        entries.append(entry)
+
+    # Merge entries into data dictionary
+    data = {}
+    for d in entries:
+        for k, v in d.items():
+            if k in data:
+                data[k] += v
+            else:
+                data[k] = v
+
+    df = pd.DataFrame(data)
+    print(df)
 
 
 def single_gpu_test_thresh(model,
@@ -115,7 +160,7 @@ def single_gpu_test_thresh(model,
             prog_bar.update()
 
     # Compute thresholds as optimal decision boundary points
-    sim_threshs = np.zeros(K)
+    sim_threshs = [None] * K
     for k in range(K):
         sim_pos = sim_poss[k]
         sim_neg = sim_negs[k]
@@ -123,11 +168,12 @@ def single_gpu_test_thresh(model,
             dec_b = dataset_thresh.comp_logreg_decision_point(sim_pos, sim_neg)
             sim_threshs[k] = dec_b
     # Clip thresholds to probabilistic values
-    sim_threshs = [min(1, max(0, s)) for s in sim_threshs]
+    sim_threshs = [
+        min(1, max(-1, s)) if s is not None else s for s in sim_threshs
+    ]
 
-    print('\nSimilarity thresholds')
-    for idx, sim in enumerate(sim_threshs):
-        print('\t', idx, '\t', f'{sim:.3f}')
+    txts = dataset_thresh.CLASSES
+    print_sim_treshs(sim_threshs, txts, sim_poss, sim_negs)
 
     prog_bar = mmcv.ProgressBar(len(dataset))
     for batch_indices, data in zip(loader_indices, data_loader):
