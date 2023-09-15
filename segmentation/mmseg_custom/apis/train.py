@@ -147,12 +147,13 @@ def train_segmentor(model,
         cfg_data_train_eval.pipeline = cfg.data.val.pipeline
         val_dataset_thresh = build_dataset(cfg_data_train_eval,
                                            dict(test_mode=True))
-        # Randomly subsampled dataset
-        rnd_idxs = np.random.choice(np.arange(0, len(val_dataset_thresh)),
-                                    size=eval_cfg.thresh_smpls,
-                                    replace=False)
-        val_dataset_thresh = torch.utils.data.Subset(val_dataset_thresh,
-                                                     rnd_idxs)
+        # NOTE: Cannot be randomly subsampled as annotations loaded by filename
+        #       order! ==> Subsample from 0 --> N samples instead
+        # rnd_idxs = np.random.choice(np.arange(0, len(val_dataset_thresh)),
+        #                             size=eval_cfg.thresh_smpls,
+        #                             replace=False)
+        val_dataset_thresh = torch.utils.data.Subset(
+            val_dataset_thresh, np.arange(0, eval_cfg.thresh_smpls))
         val_dataloader_thresh = build_dataloader(
             val_dataset_thresh,
             samples_per_gpu=1,
