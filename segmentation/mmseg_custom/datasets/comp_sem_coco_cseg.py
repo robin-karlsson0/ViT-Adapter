@@ -53,18 +53,6 @@ class CompSemCOCOCsegDataset(CustomDataset):
         'raw material'
     ]
 
-    # Upper category
-    # CLASSES += ['vehicle', 'other', 'surface', 'structure', 'fauna', 'living']
-
-    # Material
-    # CLASSES += ['metal', 'dirt', 'asphalt', 'concrete', 'organism']
-
-    # Type  NOTE: Subsumed by 'original' labels
-    # CLASSES += []
-
-    # Remove duplicates
-    # CLASSES = tuple(set(CLASSES))
-
     PALETTE = []
     for cls_idx in range(len(CLASSES)):
         rgb = np.random.randint(0, 256, size=3)
@@ -102,6 +90,193 @@ class CompSemCOCOCsegDataset(CustomDataset):
         for cls_idx, cls_txt in enumerate(self.CLASSES):
             idx_star = self.txt2idx_star[cls_txt]
             self.idx_star2cls_idx[idx_star] = cls_idx
+
+        # cls_groups[class txt] --> [List of class txts]
+        self.cls_groups = {
+            'person': ['person', 'outdoor'],
+            'bicycle': ['bicycle', 'vehicle', 'outdoor'],
+            'car': ['car', 'vehicle', 'outdoor'],
+            'motorcycle': ['motorcycle', 'vehicle', 'outdoor'],
+            'airplane': ['airplane', 'vehicle', 'outdoor'],
+            'bus': ['bus', 'vehicle', 'outdoor'],
+            'train': ['train', 'vehicle', 'outdoor'],
+            'truck': ['truck', 'vehicle', 'outdoor'],
+            'boat': ['boat', 'vehicle', 'outdoor'],
+            'traffic light': ['traffic light', 'outdoor'],
+            'fire hydrant': ['fire hydrant', 'outdoor'],
+            'street sign': ['street sign', 'outdoor'],
+            'stop sign': ['stop sign', 'outdoor'],
+            'parking meter': ['parking meter', 'outdoor'],
+            'bench': ['bench', 'outdoor'],
+            'bird': ['bird', 'animal', 'outdoor'],
+            'cat': ['cat', 'animal', 'outdoor'],
+            'dog': ['dog', 'animal', 'outdoor'],
+            'horse': ['horse', 'animal', 'outdoor'],
+            'sheep': ['sheep', 'animal', 'outdoor'],
+            'cow': ['cow', 'animal', 'outdoor'],
+            'elephant': ['elephant', 'animal', 'outdoor'],
+            'bear': ['bear', 'animal', 'outdoor'],
+            'zebra': ['zebra', 'animal', 'outdoor'],
+            'giraffe': ['giraffe', 'animal', 'outdoor'],
+            'hat': ['hat', 'accessory', 'outdoor'],
+            'backpack': ['backpack', 'accessory', 'outdoor'],
+            'umbrella': ['umbrella', 'accessory', 'outdoor'],
+            'shoe': ['shoe', 'accessory', 'outdoor'],
+            'eye glasses': ['eye glasses', 'accessory', 'outdoor'],
+            'handbag': ['handbag', 'accessory', 'outdoor'],
+            'tie': ['tie', 'accessory', 'outdoor'],
+            'suitcase': ['suitcase', 'accessory', 'outdoor'],
+            'frisbee': ['frisbee', 'sports', 'outdoor'],
+            'skis': ['skis', 'sports', 'outdoor'],
+            'snowboard': ['snowboard', 'sports', 'outdoor'],
+            'sports ball': ['sports ball', 'sports', 'outdoor'],
+            'kite': ['kite', 'sports', 'outdoor'],
+            'baseball bat': ['baseball bat', 'sports', 'outdoor'],
+            'baseball glove': ['baseball glove', 'sports', 'outdoor'],
+            'skateboard': ['skateboard', 'sports', 'outdoor'],
+            'surfboard': ['surfboard', 'sports', 'outdoor'],
+            'tennis racket': ['tennis racket', 'sports', 'outdoor'],
+            'bottle': ['bottle', 'kitchen', 'indoor'],
+            'plate': ['plate', 'kitchen', 'indoor'],
+            'wine glass': ['wine glass', 'kitchen', 'indoor'],
+            'cup': ['cup', 'kitchen', 'indoor'],
+            'fork': ['fork', 'kitchen', 'indoor'],
+            'knife': ['knife', 'kitchen', 'indoor'],
+            'spoon': ['spoon', 'kitchen', 'indoor'],
+            'bowl': ['bowl', 'kitchen', 'indoor'],
+            'banana': ['banana', 'food', 'indoor'],
+            'apple': ['apple', 'food', 'indoor'],
+            'sandwich': ['sandwich', 'food', 'indoor'],
+            'orange': ['orange', 'food', 'indoor'],
+            'broccoli': ['broccoli', 'food', 'indoor'],
+            'carrot': ['carrot', 'food', 'indoor'],
+            'hot dog': ['hot dog', 'food', 'indoor'],
+            'pizza': ['pizza', 'food', 'indoor'],
+            'donut': ['donut', 'food', 'indoor'],
+            'cake': ['cake', 'food', 'indoor'],
+            'chair': ['chair', 'furniture', 'indoor'],
+            'couch': ['couch', 'furniture', 'indoor'],
+            'potted plant': ['potted plant', 'furniture', 'indoor'],
+            'bed': ['bed', 'furniture', 'indoor'],
+            'mirror': ['mirror', 'furniture', 'indoor'],
+            'dining table': ['dining table', 'furniture', 'indoor'],
+            'window': ['window', 'furniture', 'indoor'],
+            'desk': ['desk', 'furniture', 'indoor'],
+            'toilet': ['toilet', 'furniture', 'indoor'],
+            'door': ['door', 'furniture', 'indoor'],
+            'tv': ['tv', 'electronic', 'indoor'],
+            'laptop': ['laptop', 'electronic', 'indoor'],
+            'mouse': ['mouse', 'electronic', 'indoor'],
+            'remote': ['remote', 'electronic', 'indoor'],
+            'keyboard': ['keyboard', 'electronic', 'indoor'],
+            'cell phone': ['cell phone', 'electronic', 'indoor'],
+            'microwave': ['microwave', 'appliance', 'indoor'],
+            'oven': ['oven', 'appliance', 'indoor'],
+            'toaster': ['toaster', 'appliance', 'indoor'],
+            'sink': ['sink', 'appliance', 'indoor'],
+            'refrigerator': ['refrigerator', 'appliance', 'indoor'],
+            'blender': ['blender', 'appliance', 'indoor'],
+            'book': ['book', 'indoor'],
+            'clock': ['clock', 'indoor'],
+            'vase': ['vase', 'indoor'],
+            'scissors': ['scissors', 'indoor'],
+            'teddy bear': ['teddy bear', 'indoor'],
+            'hair drier': ['hair drier', 'indoor'],
+            'toothbrush': ['toothbrush', 'indoor'],
+            'hair brush': ['hair brush', 'indoor'],
+            'banner': ['banner', 'textile', 'indoor'],
+            'blanket': ['blanket', 'textile', 'indoor'],
+            'branch': ['branch', 'plant', 'outdoor'],
+            'bridge': ['bridge', 'building', 'outdoor'],
+            'building': ['building', 'outdoor'],
+            'bush': ['bush', 'plant', 'outdoor'],
+            'cabinet': ['cabinet', 'furniture', 'indoor'],
+            'cage': ['cage', 'structural', 'outdoor'],
+            'cardboard': ['cardboard', 'raw material', 'indoor'],
+            'carpet': ['carpet', 'textile', 'indoor'],
+            'ceiling': ['ceiling', 'building', 'outdoor'],
+            'tile ceiling': ['tile ceiling', 'ceiling', 'indoor'],
+            'cloth': ['cloth', 'textile', 'indoor'],
+            'clothes': ['clothes', 'textile', 'indoor'],
+            'clouds': ['clouds', 'sky', 'outdoor'],
+            'counter': ['counter', 'furniture', 'indoor'],
+            'cupboard': ['cupboard', 'furniture', 'indoor'],
+            'curtain': ['curtain', 'textile', 'indoor'],
+            'dirt': ['dirt', 'ground', 'outdoor'],
+            'fence': ['fence', 'structural', 'outdoor'],
+            'marble floor': ['marble floor', 'floor', 'indoor'],
+            'floor': ['floor', 'indoor'],
+            'stone floor': ['stone floor', 'floor', 'indoor'],
+            'tile floor': ['tile floor', 'floor', 'indoor'],
+            'wood floor': ['wood floor', 'floor', 'indoor'],
+            'flower': ['flower', 'plant', 'outdoor'],
+            'fog': ['fog', 'water', 'outdoor'],
+            'food': ['food', 'indoor'],
+            'fruit': ['fruit', 'food', 'indoor'],
+            'furniture': ['furniture', 'indoor'],
+            'grass': ['grass', 'plant', 'outdoor'],
+            'gravel': ['gravel', 'ground', 'outdoor'],
+            'ground': ['ground', 'outdoor'],
+            'hill': ['hill', 'solid'],
+            'house': ['house', 'building', 'outdoor'],
+            'leaves': ['leaves', 'plant', 'outdoor'],
+            'light': ['light', 'furniture', 'indoor'],
+            'mat': ['mat', 'textile', 'indoor'],
+            'metal': ['metal', 'raw material', 'indoor'],
+            'moss': ['moss', 'plant', 'outdoor'],
+            'mountain': ['mountain', 'solid', 'outdoor'],
+            'mud': ['mud', 'ground', 'outdoor'],
+            'napkin': ['napkin', 'textile', 'indoor'],
+            'net': ['net', 'textile', 'indoor'],
+            'paper': ['paper', 'raw material', 'indoor'],
+            'pavement': ['pavement', 'ground', 'outdoor'],
+            'pillow': ['pillow', 'textile', 'indoor'],
+            'plant': ['plant', 'outdoor'],
+            'plastic': ['plastic', 'raw material'],
+            'platform': ['platform', 'ground', 'outdoor'],
+            'playingfield': ['playingfield', 'ground', 'outdoor'],
+            'railing': ['railing', 'ground', 'outdoor'],
+            'railroad': ['railroad', 'ground', 'outdoor'],
+            'river': ['river', 'water', 'outdoor'],
+            'road': ['road', 'ground', 'outdoor'],
+            'rock': ['rock', 'solid', 'outdoor'],
+            'roof': ['roof', 'building', 'outdoor'],
+            'rug': ['rug', 'textile', 'indoor'],
+            'salad': ['salad', 'food', 'indoor'],
+            'sand': ['sand', 'ground', 'outdoor'],
+            'sea': ['sea', 'water', 'outdoor'],
+            'shelf': ['shelf', 'furniture', 'indoor'],
+            'sky': ['sky', 'outdoor'],
+            'skyscraper': ['skyscraper', 'building', 'outdoor'],
+            'snow': ['snow', 'ground', 'outdoor'],
+            'solid': ['solid', 'outdoor'],
+            'stairs': ['stairs', 'furniture', 'outdoor'],
+            'stone': ['stone', 'solid', 'outdoor'],
+            'straw': ['straw', 'plant', 'outdoor'],
+            'structural': ['structural', 'outdoor'],
+            'table': ['table', 'furniture', 'indoor'],
+            'tent': ['tent', 'building', 'outdoor'],
+            'textile': ['textile', 'indoor'],
+            'towel': ['towel', 'textile', 'indoor'],
+            'tree': ['tree', 'plant', 'outdoor'],
+            'vegetable': ['vegetable', 'food', 'indoor'],
+            'brick wall': ['brick wall', 'wall', 'indoor'],
+            'concrete wall': ['concrete wall', 'wall', 'indoor'],
+            'wall': ['wall', 'wall', 'indoor'],
+            'panel wall': ['panel wall', 'wall', 'indoor'],
+            'stone wall': ['stone wall', 'wall', 'indoor'],
+            'tile wall': ['tile wall', 'wall', 'indoor'],
+            'wood wall': ['wood wall', 'wall', 'indoor'],
+            'water': ['water', 'outdoor'],
+            'waterdrops': ['waterdrops', 'water', 'outdoor'],
+            'blind window': ['blind window', 'window', 'indoor'],
+            'wood': ['wood', 'raw material', 'indoor']
+        }
+
+        cls_txt2cls_idx = {}
+        for cls_idx, cls_txt in enumerate(self.CLASSES):
+            cls_txt2cls_idx[cls_txt] = cls_idx
+        self.cls_txt2cls_idx = cls_txt2cls_idx
 
     @staticmethod
     def compute_iou(pred: np.array, label: np.array):
@@ -273,31 +448,54 @@ class CompSemCOCOCsegDataset(CustomDataset):
         area_pred_label_sum = np.zeros(num_classes)
         area_label_sum = np.zeros(num_classes)
 
+        ##############################################
+        #  Generate high-level masks and class list
+        ##############################################
+        label_h, label_w = label.shape
+        label_clss = np.zeros((len(self.CLASSES), label_h, label_w))
+
+        # Set of class idx for all annotated and hierarchical semantics
+        cls_idxs = set()
+
         for idx_star in idx_stars:
             # Only process valid categories
             if idx_star not in self.idx_star2cls_idx.keys():
                 continue
+
+            # This mask is true for all members of the group
+            mask = label == idx_star
+
+            # Fill mask region for all semantic levels
             cls_idx = self.idx_star2cls_idx[idx_star]
+            cls_txt = self.CLASSES[cls_idx]
+            cls_txts = self.cls_groups[cls_txt]
+            for cls_txt in cls_txts:
+
+                # Boolean annotation mask (H, W) for current category
+                cls_idx = self.cls_txt2cls_idx[cls_txt]
+                label_clss[cls_idx][mask] = True
+
+                cls_idxs.add(cls_idx)
+
+        #####################################
+        #  Evaluate high-level predictions
+        #####################################
+        for cls_idx in cls_idxs:
 
             # Skip evaluating semantics without a threshold value
             sim_thresh = sim_treshs[cls_idx]
             if sim_thresh is None:
                 continue
 
-            # Boolean annotation mask (H, W) for current category
-            label_cls = np.zeros_like(label, dtype=bool)
-            mask = label == idx_star
-            label_cls[mask] = True
-
             # Boolean prediction mask (H, W) by sufficient similarity
-            pred_seg = np.zeros_like(label_cls, dtype=bool)
+            pred_seg = np.zeros_like(label, dtype=bool)
             mask = pred_sims[cls_idx] > sim_thresh
             pred_seg[mask] = True
 
             # NOTE Need to remove 'ignore' idx from mask
             valid_mask = (label != np.iinfo(np.uint32).max)
             pred_seg = pred_seg[valid_mask]
-            label_cls = label_cls[valid_mask]
+            label_cls = label_clss[cls_idx][valid_mask]
 
             # Compute intersection and union by #elements
             area_intersect = np.logical_and(pred_seg, label_cls)
