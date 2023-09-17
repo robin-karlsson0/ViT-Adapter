@@ -247,17 +247,19 @@ def main():
             cfg_data_train_eval = cfg.data.train
             cfg_data_train_eval.pipeline = cfg.data.test.pipeline
             dataset_thresh = build_dataset(cfg_data_train_eval)
-            # Randomly subsampled dataset
-            rnd_idxs = np.random.choice(np.arange(0, len(dataset_thresh)),
-                                        size=args.thresh_smpls,
-                                        replace=False)
-            dataset_thresh = torch.utils.data.Subset(dataset_thresh, rnd_idxs)
+            # NOTE: Cannot be randomly subsampled as annotations loaded by
+            #       filename order! ==> Subsample from 0 --> N samples instead
+            # rnd_idxs = np.random.choice(np.arange(0, len(val_dataset_thresh)),
+            #                             size=eval_cfg.thresh_smpls,
+            #                             replace=False)
+            dataset_thresh = torch.utils.data.Subset(
+                dataset_thresh, np.arange(0, args.thresh_smpls))
             data_loader_thresh = build_dataloader(
                 dataset_thresh,
                 samples_per_gpu=1,
                 workers_per_gpu=cfg.data.workers_per_gpu,
                 dist=distributed,
-                shuffle=True)  # Random subsampling for memory conservation
+                shuffle=False)
             results = single_gpu_test_thresh(
                 model,
                 data_loader,
@@ -292,12 +294,19 @@ def main():
             cfg_data_train_eval = cfg.data.train
             cfg_data_train_eval.pipeline = cfg.data.test.pipeline
             dataset_thresh = build_dataset(cfg_data_train_eval)
+            # NOTE: Cannot be randomly subsampled as annotations loaded by
+            #       filename order! ==> Subsample from 0 --> N samples instead
+            # rnd_idxs = np.random.choice(np.arange(0, len(val_dataset_thresh)),
+            #                             size=eval_cfg.thresh_smpls,
+            #                             replace=False)
+            dataset_thresh = torch.utils.data.Subset(
+                dataset_thresh, np.arange(0, args.thresh_smpls))
             data_loader_thresh = build_dataloader(
-                dataset,
+                dataset_thresh,
                 samples_per_gpu=1,
                 workers_per_gpu=cfg.data.workers_per_gpu,
                 dist=distributed,
-                shuffle=True)  # Random subsampling for memory conservation
+                shuffle=False)
             results = multi_gpu_test_thresh(model,
                                             data_loader,
                                             data_loader_thresh,

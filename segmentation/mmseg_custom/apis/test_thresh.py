@@ -1,5 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import datetime
 import os.path as osp
+import pickle
 import tempfile
 import warnings
 
@@ -76,7 +78,23 @@ def print_sim_treshs(sim_threshs: list, txts: list, sim_poss: list,
                 data[k] = v
 
     df = pd.DataFrame(data)
-    print(df)
+    with pd.option_context('display.max_rows', None, 'display.max_columns',
+                           None):
+        print(df)
+
+
+def save_thresh_dict(sim_threshs: list, txts: list):
+    sim_thresh_dict = {}
+    for sim_thresh, txt in zip(sim_threshs, txts):
+        sim_thresh_dict[txt] = sim_thresh
+
+    now = datetime.datetime.now()
+    ts = now.strftime("%Y_%m_%d_%H_%M_%S")
+    file_name = f'sim_threshs_{ts}.pkl'
+    with open(file_name, "wb") as f:
+        pickle.dump(sim_thresh_dict, f)
+
+    print(f'sim_threshs to file: {file_name}')
 
 
 def single_gpu_test_thresh(model,
@@ -174,6 +192,7 @@ def single_gpu_test_thresh(model,
 
     txts = dataset_thresh.CLASSES
     print_sim_treshs(sim_threshs, txts, sim_poss, sim_negs)
+    save_thresh_dict(sim_threshs, txts)
 
     prog_bar = mmcv.ProgressBar(len(dataset))
     for batch_indices, data in zip(loader_indices, data_loader):
@@ -337,6 +356,7 @@ def multi_gpu_test_thresh(model,
     if rank == 0:
         txts = dataset_thresh.CLASSES
         print_sim_treshs(sim_threshs, txts, sim_poss, sim_negs)
+        save_thresh_dict(sim_threshs, txts)
 
     if rank == 0:
         prog_bar = mmcv.ProgressBar(len(dataset))
