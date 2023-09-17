@@ -628,7 +628,7 @@ def convert_label_to_idx_star(task: tuple,
         label_filepath: Path to the original semantic label.
         ignore_id: Default value for unlabeled elements.
     """
-    label_filepath, txt2idx_star = task
+    label_filepath, txt2idx_star, is_train = task
     # Read label file as Numpy array (H, W, 3) --> (H, W)
     orig_label = mmcv.imread(label_filepath)
     orig_label = orig_label[:, :, 0]
@@ -646,7 +646,13 @@ def convert_label_to_idx_star(task: tuple,
         mask = (orig_label == idx)
 
         # Get uniqe idx representing semantic txt
-        lvl_idx = np.random.choice([0, 1, 2], p=LVL_SAMPLING_PROB)
+        # 1) Training samples are from randomly sampled hierarchcy
+        if is_train:
+            lvl_idx = np.random.choice([0, 1, 2], p=LVL_SAMPLING_PROB)
+        # 2) Validation samples are lowest hierarchy for evaluating all
+        #    hierarchies at evaluation time
+        else:
+            lvl_idx = 0
 
         idx_star = txt2idx_star[IDX2TXT_COCOSTUFF_ONTOLOGY_SET[lvl_idx][idx]]
         new_label[mask] = idx_star
@@ -706,8 +712,9 @@ def main():
     ####################
     #  Convert labels
     ####################
-    train_tasks = [(path, txt2idx_star) for path in train_list]
-    test_tasks = [(path, txt2idx_star) for path in test_list]
+    # task = (path_to_annotation, mapping_dict, is_train)
+    train_tasks = [(path, txt2idx_star, True) for path in train_list]
+    test_tasks = [(path, txt2idx_star, False) for path in test_list]
 
     if args.nproc > 1:
         mmcv.track_parallel_progress(convert_label_to_idx_star,
