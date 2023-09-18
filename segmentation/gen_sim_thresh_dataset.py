@@ -1,12 +1,16 @@
 import argparse
 import os
 import os.path as osp
+import random
 from glob import glob
 
 import numpy as np
 import pandas as pd
 
 from tools.convert_datasets.txt2idx_star import load_register
+
+random.seed(14)
+np.random.seed(14)
 
 NP_TYPE = np.uint32
 IDX_STR_LEN = 12
@@ -27,7 +31,7 @@ def get_sample_idx_stars(ann_path: str,
 def get_ann_idx(ann_path: str):
     '''
     Presumed path format:
-        coco/stuffthingmaps_trainval2017/train2017/000000000139_vl_emb_idxs.npz
+        coco/stuffthingmaps_trainval2017/val2017/000000000139_vl_emb_idxs.npz
     '''
     ann_filename = ann_path.split('/')[-1]
     ann_idx = ann_filename.split('_')[0]
@@ -91,7 +95,7 @@ if __name__ == '__main__':
     out_dir = args.out_dir
 
     ann_paths = glob(
-        osp.join(coco_dir, 'stuffthingmaps_trainval2017/train2017', '*.npz'))
+        osp.join(coco_dir, 'stuffthingmaps_trainval2017/val2017', '*.npz'))
     print(f'Found {len(ann_paths)} .npz annotation files')
     if len(ann_paths) == 0:
         raise IOError('No files found')
@@ -142,7 +146,7 @@ if __name__ == '__main__':
     ##################################
     new_img_dir = osp.join(args.coco_dir, 'images', 'train2017_sem_thresh')
     new_ann_dir = osp.join(args.coco_dir,
-                           'stuffthingmaps_trainval2017/train2017_sem_thresh')
+                           'stuffthingmaps_trainval2017/val2017_sem_thresh')
     for new_dir in [new_img_dir, new_ann_dir]:
         if not osp.isdir(new_dir):
             os.mkdir(new_dir)
@@ -152,11 +156,11 @@ if __name__ == '__main__':
         idx_str = str(sample_idx).zfill(IDX_STR_LEN)
 
         img_filename = idx_str + '.jpg'
-        img_path = osp.join(args.coco_dir, 'images/train2017', img_filename)
+        img_path = osp.join(args.coco_dir, 'images/val2017', img_filename)
 
         ann_filename = idx_str + '_vl_emb_idxs.npz'
         ann_path = osp.join(args.coco_dir,
-                            'stuffthingmaps_trainval2017/train2017',
+                            'stuffthingmaps_trainval2017/val2017',
                             ann_filename)
 
         new_img_path = osp.join(new_img_dir, img_filename)
@@ -169,7 +173,7 @@ if __name__ == '__main__':
 
     # Printing subsampled category distribution
     ann_paths = glob(
-        osp.join(coco_dir, 'stuffthingmaps_trainval2017/train2017_sem_thresh',
+        osp.join(coco_dir, 'stuffthingmaps_trainval2017/val2017_sem_thresh',
                  '*.npz'))
 
     # For listing samples with annotations
