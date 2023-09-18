@@ -27,7 +27,7 @@ def get_sample_idx_stars(ann_path: str,
 def get_ann_idx(ann_path: str):
     '''
     Presumed path format:
-        coco/stuffthingmaps_trainval2017/val2017/000000000139_vl_emb_idxs.npz
+        coco/stuffthingmaps_trainval2017/train2017/000000000139_vl_emb_idxs.npz
     '''
     ann_filename = ann_path.split('/')[-1]
     ann_idx = ann_filename.split('_')[0]
@@ -91,8 +91,7 @@ if __name__ == '__main__':
     out_dir = args.out_dir
 
     ann_paths = glob(
-        osp.join(coco_dir, 'stuffthingmaps_trainval2017/val2017',
-                 '*.npz'))  # train2017
+        osp.join(coco_dir, 'stuffthingmaps_trainval2017/train2017', '*.npz'))
     print(f'Found {len(ann_paths)} .npz annotation files')
     if len(ann_paths) == 0:
         raise IOError('No files found')
@@ -153,11 +152,11 @@ if __name__ == '__main__':
         idx_str = str(sample_idx).zfill(IDX_STR_LEN)
 
         img_filename = idx_str + '.jpg'
-        img_path = osp.join(args.coco_dir, 'images/val2017', img_filename)
+        img_path = osp.join(args.coco_dir, 'images/train2017', img_filename)
 
         ann_filename = idx_str + '_vl_emb_idxs.npz'
         ann_path = osp.join(args.coco_dir,
-                            'stuffthingmaps_trainval2017/val2017',
+                            'stuffthingmaps_trainval2017/train2017',
                             ann_filename)
 
         new_img_path = osp.join(new_img_dir, img_filename)
