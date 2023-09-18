@@ -47,18 +47,18 @@ def print_counts(cls_counts: dict):
         print(df)
 
 
-def get_rarest_category(cls_counts: dict):
+def get_random_sample_from_category(cls_counts: dict,
+                                    resampled_cls_counts: dict):
     '''
-    Finds the rarest category, samples one sample_idx from it, and removes the
-    sample and category if empty.
+    Gets a random sample from the least sampled category.
 
-    NOTE Ensure input dictionary does not contain empty categories.
+    NOTE Original input dictionaries are modified!
     '''
     min_cls_counts = np.inf
     min_cls_count_txt = None
-    for key, val in cls_counts.items():
+    for key, val in resampled_cls_counts.items():
         cls_count = len(val)
-        if cls_count < min_cls_counts:
+        if cls_count < min_cls_counts and key in cls_counts.keys():
             min_cls_counts = cls_count
             min_cls_count_txt = key
 
@@ -70,7 +70,10 @@ def get_rarest_category(cls_counts: dict):
     if len(cls_counts[min_cls_count_txt]) == 0:
         cls_counts.pop(min_cls_count_txt)
 
-    return sample_idx, cls_counts
+    # Add sample to list
+    resampled_cls_counts[min_cls_count_txt].append(sample_idx)
+
+    return sample_idx
 
 
 def parse_args():
@@ -135,9 +138,12 @@ if __name__ == '__main__':
         cls_counts.pop(cls_txt)
 
     subsample_idxs = []
-    # for sample_idx in range(args.num_samples):
+    resampled_cls_counts = {}
+    for key, _ in txt2idx_star.items():
+        resampled_cls_counts[key] = []
     while len(subsample_idxs) < args.num_samples:
-        sample_idx, cls_counts = get_rarest_category(cls_counts)
+        sample_idx = get_random_sample_from_category(cls_counts,
+                                                     resampled_cls_counts)
         if sample_idx not in subsample_idxs:
             subsample_idxs.append(sample_idx)
 
@@ -190,4 +196,5 @@ if __name__ == '__main__':
             ann_idx = get_ann_idx(ann_path)
             cls_counts[cls_txt].append(ann_idx)
 
+    print('\nResampled')
     print_counts(cls_counts)
