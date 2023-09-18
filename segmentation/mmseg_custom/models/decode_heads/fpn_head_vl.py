@@ -4,9 +4,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn import ConvModule
-
-from mmseg.ops import Upsample, resize
 from mmseg.models.builder import HEADS
+from mmseg.ops import Upsample, resize
+
 from mmseg_custom.models.decode_heads.decode_head_vl import BaseDecodeHeadVL
 from tools.convert_datasets.txt2idx_star import load_register
 
@@ -61,14 +61,14 @@ class FPNHeadVL(BaseDecodeHeadVL):
                 scale_head = []
                 for k in range(head_length):
                     scale_head.append(
-                        ConvModule(
-                            self.in_channels[i] if k == 0 else self.channels,
-                            self.channels,
-                            3,
-                            padding=1,
-                            conv_cfg=self.conv_cfg,
-                            norm_cfg=self.norm_cfg,
-                            act_cfg=self.act_cfg))
+                        ConvModule(self.in_channels[i]
+                                   if k == 0 else self.in_channels[-1],
+                                   self.in_channels[-1],
+                                   3,
+                                   padding=1,
+                                   conv_cfg=self.conv_cfg,
+                                   norm_cfg=self.norm_cfg,
+                                   act_cfg=self.act_cfg))
                     if feature_strides[i] != feature_strides[0]:
                         scale_head.append(
                             Upsample(scale_factor=2,
@@ -85,6 +85,11 @@ class FPNHeadVL(BaseDecodeHeadVL):
         self.ignore_emb_idx = ignore_emb_idx
 
         self.conv_seg = None  # Remove to avoid unused parameters
+
+        self.conv = ConvModule(self.in_channels[-1],
+                               self.channels,
+                               kernel_size=1,
+                               act_cfg=None)
 
     def label_idx2emb(self, idx_maps: torch.tensor) -> torch.tensor:
         '''
@@ -158,12 +163,15 @@ class FPNHeadVL(BaseDecodeHeadVL):
         else:
             output = x[0]
 
+        # Upsample
+        output = F.interpolate(output, self.output_size, mode='bilinear')
+
+        # Reduce dim by 1x1 conv
+        output = self.conv(output)
+
         # Normalize
         if self.normalize_output:
             output = F.normalize(output)
-
-        # Upsample
-        output = F.interpolate(output, self.output_size, mode='nearest')
 
         return output
 

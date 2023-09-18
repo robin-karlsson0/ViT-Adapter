@@ -7,41 +7,70 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmseg.models.builder import BACKBONES
-from ops.modules import MSDeformAttn
 from timm.models.layers import DropPath, trunc_normal_
 from torch.nn.init import normal_
 
-from .base.beit import BEiT
-from .adapter_modules import SpatialPriorModule, deform_inputs
+from ops.modules import MSDeformAttn
+
 from .adapter_modules import InteractionBlockWithCls as InteractionBlock
+from .adapter_modules import SpatialPriorModule, deform_inputs
+from .base.beit import BEiT
+
 _logger = logging.getLogger(__name__)
 
 
 @BACKBONES.register_module()
 class BEiTAdapter(BEiT):
-    def __init__(self, pretrain_size=224, conv_inplane=64, n_points=4, deform_num_heads=6,
-                 init_values=0., cffn_ratio=0.25, deform_ratio=1.0, with_cffn=True,
-                 interaction_indexes=None, add_vit_feature=True, with_cp=False, *args, **kwargs):
 
-        super().__init__(init_values=init_values, with_cp=with_cp, *args, **kwargs)
+    def __init__(self,
+                 pretrain_size=224,
+                 conv_inplane=64,
+                 n_points=4,
+                 deform_num_heads=6,
+                 init_values=0.,
+                 cffn_ratio=0.25,
+                 deform_ratio=1.0,
+                 with_cffn=True,
+                 interaction_indexes=None,
+                 add_vit_feature=True,
+                 with_cp=False,
+                 patch_size=16,
+                 *args,
+                 **kwargs):
+
+        super().__init__(init_values=init_values,
+                         with_cp=with_cp,
+                         *args,
+                         **kwargs)
 
         # self.num_classes = 80
         # self.cls_token = None
+        self.patch_size = patch_size
         self.num_block = len(self.blocks)
         self.pretrain_size = (pretrain_size, pretrain_size)
-        self.flags = [i for i in range(-1, self.num_block, self.num_block // 4)][1:]
+        self.flags = [
+            i for i in range(-1, self.num_block, self.num_block // 4)
+        ][1:]
         self.interaction_indexes = interaction_indexes
         self.add_vit_feature = add_vit_feature
         embed_dim = self.embed_dim
 
         self.level_embed = nn.Parameter(torch.zeros(3, embed_dim))
-        self.spm = SpatialPriorModule(inplanes=conv_inplane, embed_dim=embed_dim, with_cp=False)
+        self.spm = SpatialPriorModule(inplanes=conv_inplane,
+                                      embed_dim=embed_dim,
+                                      with_cp=False)
         self.interactions = nn.Sequential(*[
-            InteractionBlock(dim=embed_dim, num_heads=deform_num_heads, n_points=n_points,
-                             init_values=init_values, drop_path=self.drop_path_rate,
-                             norm_layer=self.norm_layer, with_cffn=with_cffn,
-                             cffn_ratio=cffn_ratio, deform_ratio=deform_ratio,
-                             extra_extractor=True if i == len(interaction_indexes) - 1 else False,
+            InteractionBlock(dim=embed_dim,
+                             num_heads=deform_num_heads,
+                             n_points=n_points,
+                             init_values=init_values,
+                             drop_path=self.drop_path_rate,
+                             norm_layer=self.norm_layer,
+                             with_cffn=with_cffn,
+                             cffn_ratio=cffn_ratio,
+                             deform_ratio=deform_ratio,
+                             extra_extractor=True if i ==
+                             len(interaction_indexes) - 1 else False,
                              with_cp=with_cp)
             for i in range(len(interaction_indexes))
         ])
@@ -74,8 +103,9 @@ class BEiTAdapter(BEiT):
                 m.bias.data.zero_()
 
     def _get_pos_embed(self, pos_embed, H, W):
-        pos_embed = pos_embed.reshape(
-            1, self.pretrain_size[0] // 16, self.pretrain_size[1] // 16, -1).permute(0, 3, 1, 2)
+        pos_embed = pos_embed.reshape(1, self.pretrain_size[0] // 16,
+                                      self.pretrain_size[1] // 16,
+                                      -1).permute(0, 3, 1, 2)
         pos_embed = F.interpolate(pos_embed, size=(H, W), mode='bicubic', align_corners=False).\
             reshape(1, -1, H * W).permute(0, 2, 1)
         return pos_embed
@@ -91,7 +121,7 @@ class BEiTAdapter(BEiT):
         return c2, c3, c4
 
     def forward(self, x):
-        deform_inputs1, deform_inputs2 = deform_inputs(x)
+        deform_inputs1, deform_inputs2 = deform_inputs(x, self.patch_size)
 
         # SPM forward
         c1, c2, c3, c4 = self.spm(x)
@@ -101,7 +131,8 @@ class BEiTAdapter(BEiT):
         # Patch Embedding forward
         x, H, W = self.patch_embed(x)
         bs, n, dim = x.shape
-        cls = self.cls_token.expand(bs, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
+        cls = self.cls_token.expand(
+            bs, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
 
         if self.pos_embed is not None:
             pos_embed = self._get_pos_embed(self.pos_embed, H, W)
@@ -112,7 +143,8 @@ class BEiTAdapter(BEiT):
         outs = list()
         for i, layer in enumerate(self.interactions):
             indexes = self.interaction_indexes[i]
-            x, c, cls = layer(x, c, cls, self.blocks[indexes[0]:indexes[-1] + 1],
+            x, c, cls = layer(x, c, cls,
+                              self.blocks[indexes[0]:indexes[-1] + 1],
                               deform_inputs1, deform_inputs2, H, W)
             outs.append(x.transpose(1, 2).view(bs, dim, H, W).contiguous())
 
@@ -128,9 +160,18 @@ class BEiTAdapter(BEiT):
 
         if self.add_vit_feature:
             x1, x2, x3, x4 = outs
-            x1 = F.interpolate(x1, scale_factor=4, mode='bilinear', align_corners=False)
-            x2 = F.interpolate(x2, scale_factor=2, mode='bilinear', align_corners=False)
-            x4 = F.interpolate(x4, scale_factor=0.5, mode='bilinear', align_corners=False)
+            x1 = F.interpolate(x1,
+                               scale_factor=4,
+                               mode='bilinear',
+                               align_corners=False)
+            x2 = F.interpolate(x2,
+                               scale_factor=2,
+                               mode='bilinear',
+                               align_corners=False)
+            x4 = F.interpolate(x4,
+                               scale_factor=0.5,
+                               mode='bilinear',
+                               align_corners=False)
             c1, c2, c3, c4 = c1 + x1, c2 + x2, c3 + x3, c4 + x4
 
         # Final Norm

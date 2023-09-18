@@ -4,8 +4,9 @@ from functools import partial
 import torch
 import torch.nn as nn
 import torch.utils.checkpoint as cp
-from ops.modules import MSDeformAttn
 from timm.models.layers import DropPath
+
+from ops.modules import MSDeformAttn
 
 _logger = logging.getLogger(__name__)
 
@@ -33,8 +34,12 @@ def get_reference_points(spatial_shapes, device):
     return reference_points
 
 
-def deform_inputs(x):
+def deform_inputs(x, ps=14):
     '''Extract multi-scale information such as feature map sizes.
+
+    Args:
+        x: (b, 3, h, w).
+        ps: Patch size.
 
     Returns:
         reference_points: (1, D, 1, 2)
@@ -48,12 +53,12 @@ def deform_inputs(x):
                                      device=x.device)
     level_start_index = torch.cat((spatial_shapes.new_zeros(
         (1, )), spatial_shapes.prod(1).cumsum(0)[:-1]))
-    reference_points = get_reference_points([(h // 14, w // 14)],
+    reference_points = get_reference_points([(h // ps, w // ps)],
                                             x.device)  # 16 --> 14
     deform_inputs1 = [reference_points, spatial_shapes, level_start_index]
 
     spatial_shapes = torch.as_tensor(
-        [(h // 14, w // 14)],  # 16 --> 14
+        [(h // ps, w // ps)],  # 16 --> 14
         dtype=torch.long,
         device=x.device)
     level_start_index = torch.cat((spatial_shapes.new_zeros(

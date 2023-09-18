@@ -1,18 +1,16 @@
 # dataset settings
 dataset_type = 'CompSemCOCODataset'
 data_root = 'data/concat_coco_orig/'
-# img_norm_cfg = dict(
-#     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
-# CLIP img encoder
-img_norm_cfg = dict(mean=[122.7709383, 116.7460125, 104.09373615],
-                    std=[68.5005327, 66.6321579, 70.32316305],
+# BEiT img encoder
+img_norm_cfg = dict(mean=[123.675, 116.28, 103.53],
+                    std=[58.395, 57.12, 57.375],
                     to_rgb=True)
-crop_size = (448, 448)
+crop_size = (896, 896)
 
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='Resize', img_scale=(100000000000, 448),
+    dict(type='Resize', img_scale=(100000000000, 896),
          ratio_range=(0.5, 2.0)),  # 896
     dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
     dict(type='RandomFlip', prob=0.5),
@@ -27,7 +25,7 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=(100000000000, 448),  # (max_long_edge, max_short_edge)
+        img_scale=(100000000000, 896),  # (max_long_edge, max_short_edge)
         # img_ratios=[0.5, 0.75, 1.0, 1.25, 1.5, 1.75],
         flip=False,
         transforms=[
