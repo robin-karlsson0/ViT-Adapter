@@ -35,11 +35,13 @@ class BEiTAdapter(BEiT):
                  add_vit_feature=True,
                  with_cp=False,
                  patch_size=16,
+                 freeze_backbone=False,
                  *args,
                  **kwargs):
 
         super().__init__(init_values=init_values,
                          with_cp=with_cp,
+                         freeze_backbone=freeze_backbone,
                          *args,
                          **kwargs)
 

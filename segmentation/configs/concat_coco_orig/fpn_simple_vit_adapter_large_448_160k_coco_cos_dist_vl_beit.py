@@ -1,6 +1,7 @@
 _base_ = [
     '../_base_/datasets/concat_coco_stuff164k_orig_beit.py',
-    '../_base_/default_runtime.py', '../_base_/schedules/schedule_160k.py'
+    '../_base_/default_runtime.py',
+    '../_base_/schedules/schedule_160k.py',
 ]
 crop_size = (896, 896)
 pretrained = 'pretrained/beit_large_patch16_224_pt22k_ft22k.pth'
@@ -27,6 +28,7 @@ model = dict(
         deform_ratio=0.5,
         with_cp=True,  # set with_cp=True to save memory
         interaction_indexes=[[0, 5], [6, 11], [12, 17], [18, 23]],
+        freeze_backbone=False,
     ),
     neck=dict(type='FPNVL',
               in_channels=[1024, 1024, 1024, 1024],
@@ -83,9 +85,9 @@ lr_config = dict(_delete_=True,
                  by_epoch=False)
 data = dict(samples_per_gpu=1, train=dict(pipeline=train_pipeline))
 runner = dict(type='IterBasedRunner')
-checkpoint_config = dict(by_epoch=False, interval=32000, max_keep_ckpts=100)
+checkpoint_config = dict(by_epoch=False, interval=4000, max_keep_ckpts=100)
 runner = dict(type='IterBasedRunner')
-evaluation = dict(interval=10,
+evaluation = dict(interval=32000,
                   metric='mIoU',
                   save_best='mIoU',
                   efficient_test=True,
