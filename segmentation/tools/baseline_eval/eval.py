@@ -6,17 +6,18 @@ from collections import OrderedDict
 import numpy as np
 import torch
 import torch.nn.functional as F
-from mapillary_vistas import (MapillaryVistasV1_2Dataset,
-                              get_mapillary_vistas_classes_and_rgbs)
 from mmseg.core.evaluation.metrics import total_area_to_metrics
 from prettytable import PrettyTable
 from scipy.ndimage import zoom
 from tqdm import tqdm
 
+from tools.baseline_eval.datasets.load_dataset import load_dataset
 from tools.baseline_eval.models.concept_fusion_model import ConceptFusionModel
 from tools.baseline_eval.models.lseg_model import LSegModel
 from tools.baseline_eval.models.rp_clip_model import RegionProposalCLIPModel
 from tools.convert_datasets.txt2idx_star import load_register
+
+IGNORE_IDX = np.iinfo(np.uint32).max
 
 
 def print_miou_results(total_area_intersect, total_area_union,
@@ -153,7 +154,7 @@ def parse_args():
     parser.add_argument('dataset_split', type=str, help='train, val, etc.')
     parser.add_argument('model_type',
                         type=str,
-                        help='\{rp_clip | concept_fusion\}')
+                        help='\{rp_clip | concept_fusion | lseg\}')
     parser.add_argument('ckpt_path',
                         type=str,
                         default=None,
@@ -176,16 +177,11 @@ if __name__ == '__main__':
     #############
     #  Dataset
     #############
-    if args.dataset_type == 'mapillary':
-        dataset = MapillaryVistasV1_2Dataset(args.dataset_path,
-                                             args.dataset_split,
-                                             args.img_target_size)
-        cls_txts, rgbs = get_mapillary_vistas_classes_and_rgbs()
-    else:
-        raise IOError(f'Dataset not implemented ({args.dataset_type})')
+    out = load_dataset(args.dataset_type, args.dataset_path,
+                       args.dataset_split, args.img_target_size)
+    dataset, cls_txts, rgbs = out
 
     num_clss = len(cls_txts)
-    ignore_idx = np.iinfo(np.uint32).max
 
     #########################################
     #  Annotation --> embedding conversion
@@ -254,7 +250,7 @@ if __name__ == '__main__':
         emb_map = model.forward(img)
         emb_map = emb_map.cpu().numpy()
 
-        out = intersect_and_union(emb_map, label, num_clss, ignore_idx,
+        out = intersect_and_union(emb_map, label, num_clss, IGNORE_IDX,
                                   cls_embs, idx_star2cls_idx)
         area_intersect, area_union, area_pred_label, area_label = out
 
