@@ -84,7 +84,8 @@ class RegionProposalCLIPModel():
         _w = int(_w)
         _h = int(_h)
         # seg = masks[maskidx]["segmentation"]
-        nonzero_inds = torch.argwhere(torch.from_numpy(mask["segmentation"]))
+        nonzero_inds = np.argwhere(mask['segmentation'])
+        nonzero_inds = torch.tensor(nonzero_inds)
         # NOTE Image is (H, W, 3). In SAM output, y coords are along height, x along width
         img_roi = img[_y:_y + _h, _x:_x + _w, :]
         img_roi = Image.fromarray(img_roi)
