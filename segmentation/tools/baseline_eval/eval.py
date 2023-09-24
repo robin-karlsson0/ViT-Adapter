@@ -1,6 +1,7 @@
 # Ref: https://github.com/concept-fusion/concept-fusion/blob/main/examples/extract_conceptfusion_features.py
 
 import argparse
+import pickle
 from collections import OrderedDict
 
 import numpy as np
@@ -15,6 +16,11 @@ from tools.baseline_eval.datasets.load_dataset import load_dataset
 from tools.baseline_eval.models.concept_fusion_model import ConceptFusionModel
 from tools.baseline_eval.models.lseg_model import LSegModel
 from tools.baseline_eval.models.rp_clip_model import RegionProposalCLIPModel
+from tools.baseline_eval.suff_sim_thresh import (comp_logreg_decision_point,
+                                                 comp_sim,
+                                                 intersect_and_union_tresh,
+                                                 print_sim_treshs,
+                                                 save_thresh_dict)
 from tools.convert_datasets.txt2idx_star import load_register
 
 IGNORE_IDX = np.iinfo(np.uint32).max
@@ -164,11 +170,28 @@ def parse_args():
                         default=None,
                         help='\{vit_h|TODO\}')
     parser.add_argument('--img_target_size', type=int, default=1024)
+    parser.add_argument('--eval_type',
+                        type=str,
+                        default='most_sim',
+                        help='\{most_sim | suff_sim\}')
+    parser.add_argument('--sim_thresh_dict_path', type=str, default=None)
     args = parser.parse_args()
     return args
 
 
 if __name__ == '__main__':
+    '''
+    How to use
+
+    (1) Most similar evaluation
+        --eval_type most_sim
+    
+    (2) Sufficient similarity evaluation
+        --eval_type suff_sim
+        Optionally
+        --sim_thresh_dict_path <path to precomputed sim_thresh dict>
+
+    '''
     args = parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -196,6 +219,10 @@ if __name__ == '__main__':
 
     txt2idx_star = load_register(args.txt2idx_star_path)
     idx_star2emb = load_register(args.idx_star2emb_path)
+
+    cls_txt2cls_idx = {}
+    for cls_idx, cls_txt in enumerate(cls_txts):
+        cls_txt2cls_idx[cls_txt] = cls_idx
 
     # Normalize embedding vectors
     idx_star2emb = {key: F.normalize(val) for key, val in idx_star2emb.items()}
@@ -244,15 +271,72 @@ if __name__ == '__main__':
     total_area_pred_label = torch.zeros((num_clss))
     total_area_label = torch.zeros((num_clss))
 
+    ##############################################
+    #  Compute sufficient similarity thresholds
+    ##############################################
+    if args.eval_type == 'suff_sim' and args.sim_thresh_dict_path is None:
+
+        K = len(cls_txts)
+        sim_poss = [[] for _ in range(K)]
+        sim_negs = [[] for _ in range(K)]
+
+        for sample_idx in tqdm(range(len(dataset))):
+
+            img, label = dataset[sample_idx]
+            with torch.no_grad():
+                emb_map = model.forward(img)
+            emb_map = emb_map.cpu().numpy()
+
+            sim_pos, sim_neg = comp_sim(emb_map, label, cls_embs,
+                                        idx_star2cls_idx)
+
+            for k in range(K):
+                sim_poss[k].extend(sim_pos[k])
+                sim_negs[k].extend(sim_neg[k])
+
+            if sample_idx == 10:
+                break
+
+        # Compute thresholds as optimal decision boundary points
+        sim_threshs = [None] * K
+        for k in range(K):
+            sim_pos = sim_poss[k]
+            sim_neg = sim_negs[k]
+            if len(sim_pos) > 0 and len(sim_neg) > 0:
+                dec_b = comp_logreg_decision_point(sim_pos, sim_neg)
+                sim_threshs[k] = dec_b
+        # Clip similarity thresholds
+        sim_threshs = [
+            min(1, max(-1, s)) if s is not None else s for s in sim_threshs
+        ]
+        print_sim_treshs(sim_threshs, cls_txts, sim_poss, sim_negs)
+        save_thresh_dict(sim_threshs, cls_txts)
+
+    # Load precomputed similarity threshold values from a .pkl file
+    if args.eval_type == 'suff_sim' and args.sim_thresh_dict_path:
+        with open(args.sim_thresh_dict_path, 'rb') as f:
+            sim_thresh_dict = pickle.load(f)
+        sim_threshs = []
+        for cls_txt in cls_txts:
+            sim_thresh = sim_thresh_dict[cls_txt]
+            sim_threshs.append(sim_thresh)
+
     for sample_idx in tqdm(range(len(dataset))):
         img, label = dataset[sample_idx]
 
         emb_map = model.forward(img)
         emb_map = emb_map.cpu().numpy()
 
-        out = intersect_and_union(emb_map, label, num_clss, IGNORE_IDX,
-                                  cls_embs, idx_star2cls_idx)
-        area_intersect, area_union, area_pred_label, area_label = out
+        if args.eval_type == "most_sim":
+            out = intersect_and_union(emb_map, label, num_clss, IGNORE_IDX,
+                                      cls_embs, idx_star2cls_idx)
+            area_intersect, area_union, area_pred_label, area_label = out
+        elif args.eval_type == 'suff_sim':
+            K = len(cls_txts)
+            out = intersect_and_union_tresh(emb_map, label, cls_embs, cls_txts,
+                                            idx_star2cls_idx, cls_txt2cls_idx,
+                                            sim_threshs, K)
+            area_intersect, area_union, area_pred_label, area_label = out
 
         # Add sample results to accumulated counts
         total_area_intersect += area_intersect
