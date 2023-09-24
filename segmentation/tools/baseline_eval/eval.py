@@ -294,9 +294,6 @@ if __name__ == '__main__':
                 sim_poss[k].extend(sim_pos[k])
                 sim_negs[k].extend(sim_neg[k])
 
-            if sample_idx == 10:
-                break
-
         # Compute thresholds as optimal decision boundary points
         sim_threshs = [None] * K
         for k in range(K):
