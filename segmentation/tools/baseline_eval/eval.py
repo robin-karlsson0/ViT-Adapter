@@ -206,6 +206,12 @@ if __name__ == '__main__':
 
     num_clss = len(cls_txts)
 
+    # For evaluating overlapping high-level semantics
+    if args.dataset_type in ['coco_cseg']:
+        hierarchical = True
+    else:
+        hierarchical = False
+
     #########################################
     #  Annotation --> embedding conversion
     #########################################
@@ -332,7 +338,7 @@ if __name__ == '__main__':
             K = len(cls_txts)
             out = intersect_and_union_tresh(emb_map, label, cls_embs, cls_txts,
                                             idx_star2cls_idx, cls_txt2cls_idx,
-                                            sim_threshs, K)
+                                            sim_threshs, K, hierarchical)
             area_intersect, area_union, area_pred_label, area_label = out
 
         # Add sample results to accumulated counts

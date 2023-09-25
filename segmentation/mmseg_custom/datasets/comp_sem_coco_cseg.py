@@ -480,7 +480,8 @@ class CompSemCOCOCsegDataset(CustomDataset):
         #####################################
         #  Evaluate high-level predictions
         #####################################
-        for cls_idx in cls_idxs:
+        # for cls_idx in cls_idxs:
+        for cls_idx in range(len(self.CLASSES)):
 
             # Skip evaluating semantics without a threshold value
             sim_thresh = sim_treshs[cls_idx]

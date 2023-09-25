@@ -200,6 +200,7 @@ def intersect_and_union_tresh(pred_embs,
                               cls_txt2cls_idx,
                               sim_treshs: np.array,
                               num_classes,
+                              hierarchical: bool = False,
                               label_map=None):
     """Calculate IoU by sufficient similarity thresholding.
 
@@ -287,15 +288,22 @@ def intersect_and_union_tresh(pred_embs,
 
         # Fill mask region for all semantic levels
         cls_idx = idx_star2cls_idx[idx_star]
-        cls_txt = cls_txts[cls_idx]
-        cls_group_txts = CLS_GROUPS[cls_txt]
-        for cls_txt in cls_group_txts:
 
-            # Boolean annotation mask (H, W) for current category
-            cls_idx = cls_txt2cls_idx[cls_txt]
+        # Add higher-level semantics to label
+        if hierarchical:
+            cls_txt = cls_txts[cls_idx]
+            cls_group_txts = CLS_GROUPS[cls_txt]
+            for cls_txt in cls_group_txts:
+
+                # Boolean annotation mask (H, W) for current category
+                cls_idx = cls_txt2cls_idx[cls_txt]
+                label_clss[cls_idx][mask] = True
+
+                cls_idxs.add(cls_idx)
+
+        # Lower-level semantics only
+        else:
             label_clss[cls_idx][mask] = True
-
-            cls_idxs.add(cls_idx)
 
     #####################################
     #  Evaluate high-level predictions

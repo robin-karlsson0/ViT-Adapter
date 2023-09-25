@@ -271,7 +271,22 @@ class CompSemCOCODataset(CustomDataset):
         area_pred_label_sum = np.zeros(num_classes)
         area_label_sum = np.zeros(num_classes)
 
+        # Generate masks and
+        label_h, label_w = label.shape
+        label_clss = np.zeros((len(self.CLASSES), label_h, label_w))
+
         for idx_star in idx_stars:
+            # Only process valid categories
+            if idx_star not in self.idx_star2cls_idx.keys():
+                continue
+
+            mask = label == idx_star
+
+            cls_idx = self.idx_star2cls_idx[idx_star]
+            label_clss[cls_idx][mask] = True
+
+        # for cls_idx in cls_idxs:
+        for cls_idx in range(len(self.CLASSES)):
             # Only process valid categories
             if idx_star not in self.idx_star2cls_idx.keys():
                 continue

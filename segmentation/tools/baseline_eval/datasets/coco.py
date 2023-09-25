@@ -22,6 +22,7 @@ class COCOStuff(Dataset):
         self.img_dir = os.path.join(root_dir, 'imgs', split)
         self.label_dir = os.path.join(root_dir, 'anns', split)
         self.img_list = os.listdir(self.img_dir)
+        self.img_list.sort()
 
         self.target_size = target_size
 
