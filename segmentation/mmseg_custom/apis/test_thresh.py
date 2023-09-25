@@ -106,6 +106,7 @@ def single_gpu_test_thresh(model,
                            opacity=0.5,
                            pre_eval=False,
                            format_only=False,
+                           precomp_sim_thresh_path=None,
                            format_args={}):
     """Test with single GPU by progressive mode.
 
@@ -157,42 +158,55 @@ def single_gpu_test_thresh(model,
     ################################
     #  Compute optimal thresholds
     ################################
-    K = len(dataset.CLASSES)
-    sim_poss = [[] for _ in range(K)]
-    sim_negs = [[] for _ in range(K)]
+    # Load precomputed thresholds from .pkl file
+    if precomp_sim_thresh_path:
+        with open(precomp_sim_thresh_path, 'rb') as f:
+            sim_thresh_dict = pickle.load(f)
+        sim_threshs = []
+        for cls_txt in dataset.CLASSES:
+            sim_thresh = sim_thresh_dict[cls_txt]
+            sim_threshs.append(sim_thresh)
 
-    prog_bar = mmcv.ProgressBar(len(data_loader_thresh))
-    for batch_indices, data in zip(loader_indices_thresh, data_loader_thresh):
-        with torch.no_grad():
-            result = model(return_loss=False, **data)
+    # Compute similarity thresholds
+    else:
+        K = len(dataset.CLASSES)
+        sim_poss = [[] for _ in range(K)]
+        sim_negs = [[] for _ in range(K)]
 
-        sim_pos, sim_neg = dataset_thresh.comp_sim(result,
-                                                   indices=batch_indices)
+        prog_bar = mmcv.ProgressBar(len(data_loader_thresh))
+        for batch_indices, data in zip(loader_indices_thresh,
+                                       data_loader_thresh):
+            with torch.no_grad():
+                result = model(return_loss=False, **data)
 
+            sim_pos, sim_neg = dataset_thresh.comp_sim(result,
+                                                       indices=batch_indices)
+
+            for k in range(K):
+                sim_poss[k].extend(sim_pos[k])
+                sim_negs[k].extend(sim_neg[k])
+
+            batch_size = len(result)
+            for _ in range(batch_size):
+                prog_bar.update()
+
+        # Compute thresholds as optimal decision boundary points
+        sim_threshs = [None] * K
         for k in range(K):
-            sim_poss[k].extend(sim_pos[k])
-            sim_negs[k].extend(sim_neg[k])
+            sim_pos = sim_poss[k]
+            sim_neg = sim_negs[k]
+            if len(sim_pos) > 0 and len(sim_neg) > 0:
+                dec_b = dataset_thresh.comp_logreg_decision_point(
+                    sim_pos, sim_neg)
+                sim_threshs[k] = dec_b
+        # Clip similarity thresholds
+        sim_threshs = [
+            min(1, max(-1, s)) if s is not None else s for s in sim_threshs
+        ]
 
-        batch_size = len(result)
-        for _ in range(batch_size):
-            prog_bar.update()
-
-    # Compute thresholds as optimal decision boundary points
-    sim_threshs = [None] * K
-    for k in range(K):
-        sim_pos = sim_poss[k]
-        sim_neg = sim_negs[k]
-        if len(sim_pos) > 0 and len(sim_neg) > 0:
-            dec_b = dataset_thresh.comp_logreg_decision_point(sim_pos, sim_neg)
-            sim_threshs[k] = dec_b
-    # Clip similarity thresholds
-    sim_threshs = [
-        min(1, max(-1, s)) if s is not None else s for s in sim_threshs
-    ]
-
-    txts = dataset_thresh.CLASSES
-    print_sim_treshs(sim_threshs, txts, sim_poss, sim_negs)
-    save_thresh_dict(sim_threshs, txts)
+        txts = dataset_thresh.CLASSES
+        print_sim_treshs(sim_threshs, txts, sim_poss, sim_negs)
+        save_thresh_dict(sim_threshs, txts)
 
     prog_bar = mmcv.ProgressBar(len(dataset))
     for batch_indices, data in zip(loader_indices, data_loader):

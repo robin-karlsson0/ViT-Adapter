@@ -201,7 +201,7 @@ class CompSemCOCODataset(CustomDataset):
     def intersect_and_union_tresh(self,
                                   pred_embs,
                                   label,
-                                  sim_treshs: np.array,
+                                  sim_threshs: np.array,
                                   num_classes,
                                   label_map=dict()):
         """Calculate IoU by sufficient similarity thresholding.
@@ -209,7 +209,7 @@ class CompSemCOCODataset(CustomDataset):
         Args:
             pred_embs (ndarray | str): Predicted embedding map (D, H, W).
             label (ndarray | str): Ground truth segmentation idx map (H, W).
-            sim_treshs: Threshold values for sufficient similarity (K).
+            sim_threshs: Threshold values for sufficient similarity (K).
             num_classes (int): Number of categories.
             ignore_index (int): Index that will be ignored in evaluation.
             label_map (dict): Mapping old labels to new labels. The parameter will
@@ -244,7 +244,7 @@ class CompSemCOCODataset(CustomDataset):
         #     emb = self.idx_star2emb[idx_star]
         #     mask = label == idx_star
         #     pred_embs_test[:, mask] = emb.reshape(-1, 1)
-        #     sim_treshs[cls_idx] = 0.9
+        #     sim_threshs[cls_idx] = 0.9
         # pred_embs = pred_embs_test
 
         # Transform semantics --> label probability --> seg map (H,W)
@@ -287,30 +287,21 @@ class CompSemCOCODataset(CustomDataset):
 
         # for cls_idx in cls_idxs:
         for cls_idx in range(len(self.CLASSES)):
-            # Only process valid categories
-            if idx_star not in self.idx_star2cls_idx.keys():
-                continue
-            cls_idx = self.idx_star2cls_idx[idx_star]
 
             # Skip evaluating semantics without a threshold value
-            sim_thresh = sim_treshs[cls_idx]
+            sim_thresh = sim_threshs[cls_idx]
             if sim_thresh is None:
                 continue
 
-            # Boolean annotation mask (H, W) for current category
-            label_cls = np.zeros_like(label, dtype=bool)
-            mask = label == idx_star
-            label_cls[mask] = True
-
             # Boolean prediction mask (H, W) by sufficient similarity
-            pred_seg = np.zeros_like(label_cls, dtype=bool)
+            pred_seg = np.zeros_like(label, dtype=bool)
             mask = pred_sims[cls_idx] > sim_thresh
             pred_seg[mask] = True
 
             # NOTE Need to remove 'ignore' idx from mask
             valid_mask = (label != np.iinfo(np.uint32).max)
             pred_seg = pred_seg[valid_mask]
-            label_cls = label_cls[valid_mask]
+            label_cls = label_clss[cls_idx][valid_mask]
 
             # Compute intersection and union by #elements
             area_intersect = np.logical_and(pred_seg, label_cls)
@@ -363,13 +354,13 @@ class CompSemCOCODataset(CustomDataset):
 
         return pre_eval_results
 
-    def pre_eval_thresh(self, preds, sim_treshs: torch.tensor, indices):
+    def pre_eval_thresh(self, preds, sim_threshs: torch.tensor, indices):
         """Collect eval result from each iteration.
 
         Args:
             preds (list[torch.Tensor] | torch.Tensor): the segmentation logit
                 after argmax, shape (N, H, W).
-            sim_treshs: Array (K) of sufficient similarity threshold values.
+            sim_threshs: Array (K) of sufficient similarity threshold values.
             indices (list[int] | int): the prediction related ground truth
                 indices.
 
@@ -388,7 +379,7 @@ class CompSemCOCODataset(CustomDataset):
         for pred, index in zip(preds, indices):
             seg_map = self.get_gt_seg_map_by_idx(index)
             pre_eval_results.append(
-                self.intersect_and_union_tresh(pred, seg_map, sim_treshs,
+                self.intersect_and_union_tresh(pred, seg_map, sim_threshs,
                                                len(self.CLASSES),
                                                self.label_map))
 
