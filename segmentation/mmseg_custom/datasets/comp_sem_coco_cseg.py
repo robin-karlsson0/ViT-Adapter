@@ -338,42 +338,59 @@ class CompSemCOCOCsegDataset(CustomDataset):
         # Convert label 'idx*' map --> 'class idx' map
         idx_stars = list(np.unique(label))
 
-        # Create a new label map with 'cls' idxs including 'ignore' cls (255)
-        label_cls = np.ones(label.shape, dtype=int)
-        label_cls *= self.ignore_index
+        area_intersect_sum = np.zeros(num_classes)
+        area_union_sum = np.zeros(num_classes)
+        area_pred_label_sum = np.zeros(num_classes)
+        area_label_sum = np.zeros(num_classes)
+
+        # Create a new label map with 'cls' idxs filled according to label
+        label_h, label_w = label.shape
+        label_clss = np.zeros((num_classes, label_h, label_w))
         for idx_star in idx_stars:
             if idx_star not in self.idx_star2cls_idx.keys():
                 continue
             mask = label == idx_star
-            label_cls[mask] = self.idx_star2cls_idx[idx_star]
+            cls_idx = self.idx_star2cls_idx[idx_star]
 
-        # pred_seg: torch.tensor int (H, W)
-        # label_cls: torch.tensor int (H, W)
-        # NOTE Need to remove 'ignore' idx* from mask
-        valid_mask = (label != np.iinfo(np.uint32).max)
-        pred_seg = pred_seg[valid_mask]
-        label_cls = label_cls[valid_mask]
+            # Add higher-level semantics to label
+            cls_txt = self.CLASSES[cls_idx]
+            cls_group_txts = self.cls_groups[cls_txt]
+            for cls_txt in cls_group_txts:
 
-        pred_seg = torch.tensor(pred_seg)
-        label_cls = torch.tensor(label_cls)
+                # Boolean annotation mask (H, W) for current category
+                cls_idx = self.cls_txt2cls_idx[cls_txt]
+                label_clss[cls_idx][mask] = True
 
-        # Extracts matching elements with class idx
-        intersect = pred_seg[pred_seg == label_cls]
-        # Sums up elements by class idx
-        area_intersect = torch.histc(intersect.float(),
-                                     bins=(num_classes),
-                                     min=0,
-                                     max=num_classes - 1)
-        area_pred_label = torch.histc(pred_seg.float(),
-                                      bins=(num_classes),
-                                      min=0,
-                                      max=num_classes - 1)
-        area_label = torch.histc(label_cls.float(),
-                                 bins=(num_classes),
-                                 min=0,
-                                 max=num_classes - 1)
-        area_union = area_pred_label + area_label - area_intersect
-        return area_intersect, area_union, area_pred_label, area_label
+        for cls_idx in range(num_classes):
+
+            pred_seg_cls = pred_seg == cls_idx
+
+            # NOTE Need to remove 'ignore' idx from mask
+            valid_mask = (label != np.iinfo(np.uint32).max)
+            pred_seg_cls = pred_seg_cls[valid_mask]
+            label_cls = label_clss[cls_idx][valid_mask]
+
+            # Compute intersection and union by #elements
+            area_intersect = np.logical_and(pred_seg_cls, label_cls)
+            area_union = np.logical_or(pred_seg_cls, label_cls)
+
+            area_intersect = np.sum(area_intersect)
+            area_union = np.sum(area_union)
+            area_pred_label = np.sum(pred_seg_cls)
+            area_label = np.sum(label_cls)
+
+            # Add result to category-specific array elements
+            area_intersect_sum[cls_idx] = area_intersect
+            area_union_sum[cls_idx] = area_union
+            area_pred_label_sum[cls_idx] = area_pred_label
+            area_label_sum[cls_idx] = area_label
+
+        area_intersect_sum = torch.tensor(area_intersect_sum)
+        area_union_sum = torch.tensor(area_union_sum)
+        area_pred_label_sum = torch.tensor(area_pred_label_sum)
+        area_label_sum = torch.tensor(area_label_sum)
+
+        return area_intersect_sum, area_union_sum, area_pred_label_sum, area_label_sum
 
     def intersect_and_union_tresh(self,
                                   pred_embs,
