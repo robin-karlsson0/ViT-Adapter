@@ -263,6 +263,7 @@ if __name__ == '__main__':
         cls_embs = []
         for cls_txt in cls_txts:
             emb = model.conv_txt2emb(cls_txt)
+            emb /= torch.norm(emb)
             cls_embs.append(emb)
         cls_embs = torch.cat(cls_embs)  # (19, D)
 

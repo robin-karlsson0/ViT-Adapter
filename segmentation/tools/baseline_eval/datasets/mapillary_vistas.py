@@ -19,8 +19,8 @@ class MapillaryVistasV1_2Dataset(Dataset):
         self.root_dir = root_dir
         self.split = split
         self.img_transform = img_transform
-        self.img_dir = os.path.join(root_dir, 'img_dir', split)
-        self.label_dir = os.path.join(root_dir, 'ann_dir', split)
+        self.img_dir = os.path.join(root_dir, 'imgs', split)
+        self.label_dir = os.path.join(root_dir, 'anns', split)
         self.img_list = os.listdir(self.img_dir)
 
         self.target_size = target_size
@@ -39,7 +39,7 @@ class MapillaryVistasV1_2Dataset(Dataset):
         img = cv2.imread(img_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        label_name = img_name.replace('.jpg', '_v1_2_vl_emb_idxs.npz')
+        label_name = img_name.replace('.jpg', '.npz')
         label_path = os.path.join(self.label_dir, label_name)
         label = np.load(label_path)
         label = label.f.arr_0
