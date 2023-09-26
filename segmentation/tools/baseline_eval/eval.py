@@ -16,11 +16,9 @@ from tools.baseline_eval.datasets.load_dataset import load_dataset
 from tools.baseline_eval.models.concept_fusion_model import ConceptFusionModel
 from tools.baseline_eval.models.lseg_model import LSegModel
 from tools.baseline_eval.models.rp_clip_model import RegionProposalCLIPModel
-from tools.baseline_eval.suff_sim_thresh import (comp_logreg_decision_point,
-                                                 comp_sim,
-                                                 intersect_and_union_tresh,
-                                                 print_sim_treshs,
-                                                 save_thresh_dict)
+from tools.baseline_eval.suff_sim_thresh import (
+    CLS_GROUPS, comp_logreg_decision_point, comp_sim,
+    intersect_and_union_tresh, print_sim_treshs, save_thresh_dict)
 from tools.convert_datasets.txt2idx_star import load_register
 
 IGNORE_IDX = np.iinfo(np.uint32).max
@@ -69,9 +67,13 @@ def print_miou_results(total_area_intersect, total_area_union,
     print('\n' + summary_table_data.get_string())
 
 
-def intersect_and_union(pred_embs: np.array, label: np.array, num_classes: int,
-                        ignore_index: int, cls_embs: dict,
-                        idx_star2cls_idx: dict) -> tuple:
+def intersect_and_union(pred_embs: np.array,
+                        label: np.array,
+                        num_classes: int,
+                        ignore_index: int,
+                        cls_embs: dict,
+                        idx_star2cls_idx: dict,
+                        hierarchical: bool = False) -> tuple:
     """Calculate intersection and Union.
 
     Args:
@@ -105,43 +107,64 @@ def intersect_and_union(pred_embs: np.array, label: np.array, num_classes: int,
     # Convert label 'idx*' map --> 'class idx' map
     idx_stars = list(np.unique(label))
 
-    # Create a new label map with 'cls' idxs including 'ignore' cls (255)
-    label_cls = np.ones(label.shape, dtype=int)
-    label_cls *= ignore_index
+    area_intersect_sum = np.zeros(num_classes)
+    area_union_sum = np.zeros(num_classes)
+    area_pred_label_sum = np.zeros(num_classes)
+    area_label_sum = np.zeros(num_classes)
+
+    # Create a new label map with 'cls' idxs filled according to label
+    label_h, label_w = label.shape
+    label_clss = np.zeros((num_classes, label_h, label_w))
     for idx_star in idx_stars:
         if idx_star not in idx_star2cls_idx.keys():
             continue
         mask = label == idx_star
-        label_cls[mask] = idx_star2cls_idx[idx_star]
+        cls_idx = idx_star2cls_idx[idx_star]
 
-    # pred_seg: torch.tensor int (H, W)
-    # label_cls: torch.tensor int (H, W)
-    # NOTE Need to remove 'ignore' idx* from mask
-    valid_mask = (label != np.iinfo(np.uint32).max)
-    pred_seg = pred_seg[valid_mask]
-    label_cls = label_cls[valid_mask]
+        # Add higher-level semantics to label
+        if hierarchical:
+            cls_txt = cls_txts[cls_idx]
+            cls_group_txts = CLS_GROUPS[cls_txt]
+            for cls_txt in cls_group_txts:
 
-    pred_seg = torch.tensor(pred_seg)
-    label_cls = torch.tensor(label_cls)
+                # Boolean annotation mask (H, W) for current category
+                cls_idx = cls_txt2cls_idx[cls_txt]
+                label_clss[cls_idx][mask] = True
 
-    # Extracts matching elements with class idx
-    intersect = pred_seg[pred_seg == label_cls]
-    # Sums up elements by class idx
-    area_intersect = torch.histc(intersect.float(),
-                                 bins=(num_classes),
-                                 min=0,
-                                 max=num_classes - 1)
-    area_pred_label = torch.histc(pred_seg.float(),
-                                  bins=(num_classes),
-                                  min=0,
-                                  max=num_classes - 1)
-    area_label = torch.histc(label_cls.float(),
-                             bins=(num_classes),
-                             min=0,
-                             max=num_classes - 1)
-    area_union = area_pred_label + area_label - area_intersect
+        # Lower-level semantics only
+        else:
+            label_clss[cls_idx][mask] = True
 
-    return area_intersect, area_union, area_pred_label, area_label
+    for cls_idx in range(num_classes):
+
+        pred_seg_cls = pred_seg == cls_idx
+
+        # NOTE Need to remove 'ignore' idx from mask
+        valid_mask = (label != np.iinfo(np.uint32).max)
+        pred_seg_cls = pred_seg_cls[valid_mask]
+        label_cls = label_clss[cls_idx][valid_mask]
+
+        # Compute intersection and union by #elements
+        area_intersect = np.logical_and(pred_seg_cls, label_cls)
+        area_union = np.logical_or(pred_seg_cls, label_cls)
+
+        area_intersect = np.sum(area_intersect)
+        area_union = np.sum(area_union)
+        area_pred_label = np.sum(pred_seg_cls)
+        area_label = np.sum(label_cls)
+
+        # Add result to category-specific array elements
+        area_intersect_sum[cls_idx] = area_intersect
+        area_union_sum[cls_idx] = area_union
+        area_pred_label_sum[cls_idx] = area_pred_label
+        area_label_sum[cls_idx] = area_label
+
+    area_intersect_sum = torch.tensor(area_intersect_sum)
+    area_union_sum = torch.tensor(area_union_sum)
+    area_pred_label_sum = torch.tensor(area_pred_label_sum)
+    area_label_sum = torch.tensor(area_label_sum)
+
+    return area_intersect_sum, area_union_sum, area_pred_label_sum, area_label_sum
 
 
 def parse_args():
@@ -333,7 +356,7 @@ if __name__ == '__main__':
 
         if args.eval_type == "most_sim":
             out = intersect_and_union(emb_map, label, num_clss, IGNORE_IDX,
-                                      cls_embs, idx_star2cls_idx)
+                                      cls_embs, idx_star2cls_idx, hierarchical)
             area_intersect, area_union, area_pred_label, area_label = out
         elif args.eval_type == 'suff_sim':
             K = len(cls_txts)
