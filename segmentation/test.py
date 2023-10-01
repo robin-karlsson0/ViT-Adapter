@@ -109,6 +109,11 @@ def parse_args():
         type=int,
         default=500,
         help='Number of training samples to estimate sufficient sim threshs.')
+    parser.add_argument(
+        '--precomp_sim_thresh_path',
+        type=str,
+        default=None,
+        help='Path to .pkl file w. precomputed suff. sim. threshold values')
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
@@ -271,6 +276,7 @@ def main():
                 pre_eval=args.eval is not None and not eval_on_format_results,
                 format_only=args.format_only or eval_on_format_results,
                 format_args=eval_kwargs,
+                precomp_sim_thresh_path=args.precomp_sim_thresh_path,
             )
         else:
             results = single_gpu_test(model,
@@ -307,17 +313,18 @@ def main():
                 workers_per_gpu=cfg.data.workers_per_gpu,
                 dist=distributed,
                 shuffle=False)
-            results = multi_gpu_test_thresh(model,
-                                            data_loader,
-                                            data_loader_thresh,
-                                            args.tmpdir,
-                                            args.gpu_collect,
-                                            False,
-                                            pre_eval=args.eval is not None
-                                            and not eval_on_format_results,
-                                            format_only=args.format_only
-                                            or eval_on_format_results,
-                                            format_args=eval_kwargs)
+            results = multi_gpu_test_thresh(
+                model,
+                data_loader,
+                data_loader_thresh,
+                args.tmpdir,
+                args.gpu_collect,
+                False,
+                pre_eval=args.eval is not None and not eval_on_format_results,
+                format_only=args.format_only or eval_on_format_results,
+                format_args=eval_kwargs,
+                precomp_sim_thresh_path=args.precomp_sim_thresh_path,
+            )
         else:
             results = multi_gpu_test(model,
                                      data_loader,
