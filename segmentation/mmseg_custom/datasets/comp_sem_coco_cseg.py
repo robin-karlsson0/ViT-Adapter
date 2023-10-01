@@ -1,3 +1,4 @@
+import csv
 import random
 
 import numpy as np
@@ -392,6 +393,132 @@ class CompSemCOCOCsegDataset(CustomDataset):
 
         return area_intersect_sum, area_union_sum, area_pred_label_sum, area_label_sum
 
+    def viz_predictions(self, pred_sims: torch.tensor, sim_threshs: list,
+                        cls_txts: list, label: np.array):
+        '''
+        '''
+        import matplotlib.pyplot as plt
+        import PIL.Image as Image
+        num_preds = len(cls_txts)
+
+        img = Image.open('PATH_TO_VIZ_SAMPLE_IMAGE')
+        h, w = label.shape
+        img = img.resize((w, h))
+
+        for idx, cls_txt in enumerate(cls_txts):
+            cls_idx = self.cls_txt2cls_idx[cls_txt]
+
+            # Boolean prediction mask (H, W) by sufficient similarity
+            pred_seg = np.zeros_like(label, dtype=bool)
+            mask = pred_sims[cls_idx] > sim_threshs[cls_idx]
+            pred_seg[mask] = True
+            # pred_seg = pred_sims[cls_idx]
+
+            plt.subplot(1, num_preds, idx + 1)
+            plt.imshow(img)
+            plt.imshow(pred_seg, alpha=0.5)
+            # plt.imshow(pred_seg, alpha=0.9)
+            plt.title(cls_txt)
+
+        plt.show()
+
+    def extract_comp_sem_embs(self,
+                              pred_embs,
+                              label,
+                              sim_treshs: np.array,
+                              num_classes,
+                              label_map=dict()):
+        """Extract latent compositional embeddings for a set of semantics and
+        store them to disk.
+
+        Args:
+            pred_embs (ndarray | str): Predicted embedding map (D, H, W).
+            label (ndarray | str): Ground truth segmentation idx map (H, W).
+            sim_treshs: Threshold values for sufficient similarity (K).
+            num_classes (int): Number of categories.
+            ignore_index (int): Index that will be ignored in evaluation.
+            label_map (dict): Mapping old labels to new labels. The parameter will
+                work only when label is str. Default: dict().
+
+        Returns:
+            torch.Tensor: The intersection of prediction and ground truth
+                histogram on all classes.
+            torch.Tensor: The union of prediction and ground truth histogram on
+                all classes.
+            torch.Tensor: The prediction histogram on all classes.
+            torch.Tensor: The ground truth histogram on all classes.
+        """
+        if label_map is not None:
+            for old_id, new_id in label_map.items():
+                label[label == old_id] = new_id
+
+        pred_h, pred_w = pred_embs.shape[1:]
+        label_h, label_w = label.shape
+        scale_h = pred_h / label_h
+        scale_w = pred_w / label_w
+        if scale_h != 1. and scale_w != 1.:
+            label = zoom(label, (scale_h, scale_w), order=0)
+
+        # Transform semantics --> label probability --> seg map (H,W)
+        pred_embs = torch.tensor(pred_embs).unsqueeze(0)
+        pred_sims = F.conv2d(pred_embs, self.cls_embs[:, :, None, None])
+        pred_sims = pred_sims[0].numpy()  # (K,H,W)
+
+        # Return empty arrays
+        area_intersect_sum = np.zeros(num_classes)
+        area_union_sum = np.zeros(num_classes)
+        area_pred_label_sum = np.zeros(num_classes)
+        area_label_sum = np.zeros(num_classes)
+
+        ###################################
+        #  Extract z* embeddings to disk
+        ###################################
+        for cls_idx in range(len(self.CLASSES)):
+
+            # Skip evaluating semantics without a threshold value
+            sim_thresh = sim_treshs[cls_idx]
+            if sim_thresh is None:
+                continue
+
+            # Boolean prediction mask (H, W) by sufficient similarity
+            pred_seg = np.zeros_like(label, dtype=bool)
+            mask = pred_sims[cls_idx] > sim_thresh
+            pred_seg[mask] = True
+
+            if np.sum(pred_seg) == 0:
+                continue
+
+            # NOTE Need to remove 'ignore' idx from mask
+            valid_mask = (label != np.iinfo(np.uint32).max)
+            pred_seg = np.logical_and(pred_seg, valid_mask)
+            extr_embs = pred_embs[:, :, pred_seg]  # (B, D, N)
+            extr_embs = extr_embs[0].numpy()
+            extr_embs = np.transpose(extr_embs, (1, 0))  # (N, D)
+
+            # Randomly sample embeddings
+            sample_embs = 100
+            num_embs = extr_embs.shape[0]
+            if num_embs < sample_embs:
+                sample_embs = num_embs
+
+            rnd_idxs = np.random.choice(np.arange(sample_embs), sample_embs)
+            extr_embs = extr_embs[rnd_idxs]
+
+            filepath = f'comp_sem/comp_sem_embs_{self.CLASSES[cls_idx]}.csv'
+            # if not os.path.isfile(filename):
+            #     with open(filename, 'w') as f:
+            #         f.write()
+            with open(filepath, 'a') as f:
+                writer = csv.writer(f)
+                writer.writerows(extr_embs)
+
+        area_intersect_sum = torch.tensor(area_intersect_sum)
+        area_union_sum = torch.tensor(area_union_sum)
+        area_pred_label_sum = torch.tensor(area_pred_label_sum)
+        area_label_sum = torch.tensor(area_label_sum)
+
+        return area_intersect_sum, area_union_sum, area_pred_label_sum, area_label_sum
+
     def intersect_and_union_tresh(self,
                                   pred_embs,
                                   label,
@@ -445,6 +572,10 @@ class CompSemCOCOCsegDataset(CustomDataset):
         pred_embs = torch.tensor(pred_embs).unsqueeze(0)
         pred_sims = F.conv2d(pred_embs, self.cls_embs[:, :, None, None])
         pred_sims = pred_sims[0].numpy()  # (K,H,W)
+
+        # Ad hoc code to visualize overlapping semantics
+        # self.viz_predictions(pred_sims, sim_treshs, ['sink', 'appliance'],
+        #                      label)
 
         # Convert label 'idx*' map --> 'class idx' map
         idx_stars = list(np.unique(label))
@@ -594,6 +725,9 @@ class CompSemCOCOCsegDataset(CustomDataset):
                 self.intersect_and_union_tresh(pred, seg_map, sim_treshs,
                                                len(self.CLASSES),
                                                self.label_map))
+            # Ad hoc code for extracting z* to disk
+            # self.extract_comp_sem_embs(pred, seg_map, sim_treshs,
+            #                            len(self.CLASSES), self.label_map))
 
         return pre_eval_results
 
