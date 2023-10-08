@@ -1,22 +1,27 @@
 # Ref: https://github.com/concept-fusion/concept-fusion/blob/main/examples/extract_conceptfusion_features.py
 
 import argparse
+import pickle
 from collections import OrderedDict
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from mapillary_vistas import (MapillaryVistasV1_2Dataset,
-                              get_mapillary_vistas_classes_and_rgbs)
 from mmseg.core.evaluation.metrics import total_area_to_metrics
 from prettytable import PrettyTable
 from scipy.ndimage import zoom
 from tqdm import tqdm
 
+from tools.baseline_eval.datasets.load_dataset import load_dataset
 from tools.baseline_eval.models.concept_fusion_model import ConceptFusionModel
 from tools.baseline_eval.models.lseg_model import LSegModel
 from tools.baseline_eval.models.rp_clip_model import RegionProposalCLIPModel
+from tools.baseline_eval.suff_sim_thresh import (
+    CLS_GROUPS, comp_logreg_decision_point, comp_sim,
+    intersect_and_union_tresh, print_sim_treshs, save_thresh_dict)
 from tools.convert_datasets.txt2idx_star import load_register
+
+IGNORE_IDX = np.iinfo(np.uint32).max
 
 
 def print_miou_results(total_area_intersect, total_area_union,
@@ -62,9 +67,56 @@ def print_miou_results(total_area_intersect, total_area_union,
     print('\n' + summary_table_data.get_string())
 
 
-def intersect_and_union(pred_embs: np.array, label: np.array, num_classes: int,
-                        ignore_index: int, cls_embs: dict,
-                        idx_star2cls_idx: dict) -> tuple:
+def viz_predictions(pred_embs: torch.tensor, cls_txts: list,
+                    cls_txt2cls_idx: dict, cls_embs: torch.tensor):
+    '''
+        '''
+    import matplotlib.pyplot as plt
+    import PIL.Image as Image
+    num_preds = len(cls_txts)
+
+    img = Image.open(
+        '/home/robin/datasets/concat_coco_cseg_weighted/imgs/viz/0001081.jpg')
+    h, w = pred_embs.shape[1:]
+    img = img.resize((w, h))
+
+    # Predict partition
+    cls_embs_subset = []
+    for cls_txt in cls_txts:
+        if cls_txt == 'other':
+            cls_emb = model.conv_txt2emb(cls_txt)
+            cls_emb /= torch.norm(cls_emb)
+            cls_emb = cls_emb[0]
+        else:
+            cls_idx = cls_txt2cls_idx[cls_txt]
+            cls_emb = cls_embs[cls_idx]
+        cls_embs_subset.append(cls_emb)
+    cls_embs_subset = torch.stack(cls_embs_subset)
+
+    pred_embs = torch.tensor(pred_embs).unsqueeze(0)
+    pred_logits = F.conv2d(pred_embs, cls_embs_subset[:, :, None, None])
+    pred_probs = F.softmax(pred_logits, dim=1)
+    pred_seg = pred_probs.argmax(dim=1)
+    pred_seg = pred_seg[0].numpy()  # (H,W)
+
+    for idx, cls_txt in enumerate(cls_txts):
+        mask = pred_seg == idx
+
+        plt.subplot(1, num_preds, idx + 1)
+        plt.imshow(img)
+        plt.imshow(mask, alpha=0.5)
+        plt.title(cls_txt)
+
+    plt.show()
+
+
+def intersect_and_union(pred_embs: np.array,
+                        label: np.array,
+                        num_classes: int,
+                        ignore_index: int,
+                        cls_embs: dict,
+                        idx_star2cls_idx: dict,
+                        hierarchical: bool = False) -> tuple:
     """Calculate intersection and Union.
 
     Args:
@@ -88,6 +140,13 @@ def intersect_and_union(pred_embs: np.array, label: np.array, num_classes: int,
     if scale_h != 1. and scale_w != 1.:
         label = zoom(label, (scale_h, scale_w), order=0)
 
+    # ['couch', 'furniture', 'other']
+    # ['couch', 'other']
+    # ['furniture', 'other']
+    # viz_predictions(pred_embs, ['furniture', 'other'],
+    #                 cls_txt2cls_idx, cls_embs)
+    # exit()
+
     # Transform semantics --> label probability --> seg map (H,W)
     pred_embs = torch.tensor(pred_embs).unsqueeze(0)
     pred_logits = F.conv2d(pred_embs, cls_embs[:, :, None, None])
@@ -98,43 +157,64 @@ def intersect_and_union(pred_embs: np.array, label: np.array, num_classes: int,
     # Convert label 'idx*' map --> 'class idx' map
     idx_stars = list(np.unique(label))
 
-    # Create a new label map with 'cls' idxs including 'ignore' cls (255)
-    label_cls = np.ones(label.shape, dtype=int)
-    label_cls *= ignore_index
+    area_intersect_sum = np.zeros(num_classes)
+    area_union_sum = np.zeros(num_classes)
+    area_pred_label_sum = np.zeros(num_classes)
+    area_label_sum = np.zeros(num_classes)
+
+    # Create a new label map with 'cls' idxs filled according to label
+    label_h, label_w = label.shape
+    label_clss = np.zeros((num_classes, label_h, label_w))
     for idx_star in idx_stars:
         if idx_star not in idx_star2cls_idx.keys():
             continue
         mask = label == idx_star
-        label_cls[mask] = idx_star2cls_idx[idx_star]
+        cls_idx = idx_star2cls_idx[idx_star]
 
-    # pred_seg: torch.tensor int (H, W)
-    # label_cls: torch.tensor int (H, W)
-    # NOTE Need to remove 'ignore' idx* from mask
-    valid_mask = (label != np.iinfo(np.uint32).max)
-    pred_seg = pred_seg[valid_mask]
-    label_cls = label_cls[valid_mask]
+        # Add higher-level semantics to label
+        if hierarchical:
+            cls_txt = cls_txts[cls_idx]
+            cls_group_txts = CLS_GROUPS[cls_txt]
+            for cls_txt in cls_group_txts:
 
-    pred_seg = torch.tensor(pred_seg)
-    label_cls = torch.tensor(label_cls)
+                # Boolean annotation mask (H, W) for current category
+                cls_idx = cls_txt2cls_idx[cls_txt]
+                label_clss[cls_idx][mask] = True
 
-    # Extracts matching elements with class idx
-    intersect = pred_seg[pred_seg == label_cls]
-    # Sums up elements by class idx
-    area_intersect = torch.histc(intersect.float(),
-                                 bins=(num_classes),
-                                 min=0,
-                                 max=num_classes - 1)
-    area_pred_label = torch.histc(pred_seg.float(),
-                                  bins=(num_classes),
-                                  min=0,
-                                  max=num_classes - 1)
-    area_label = torch.histc(label_cls.float(),
-                             bins=(num_classes),
-                             min=0,
-                             max=num_classes - 1)
-    area_union = area_pred_label + area_label - area_intersect
+        # Lower-level semantics only
+        else:
+            label_clss[cls_idx][mask] = True
 
-    return area_intersect, area_union, area_pred_label, area_label
+    for cls_idx in range(num_classes):
+
+        pred_seg_cls = pred_seg == cls_idx
+
+        # NOTE Need to remove 'ignore' idx from mask
+        valid_mask = (label != np.iinfo(np.uint32).max)
+        pred_seg_cls = pred_seg_cls[valid_mask]
+        label_cls = label_clss[cls_idx][valid_mask]
+
+        # Compute intersection and union by #elements
+        area_intersect = np.logical_and(pred_seg_cls, label_cls)
+        area_union = np.logical_or(pred_seg_cls, label_cls)
+
+        area_intersect = np.sum(area_intersect)
+        area_union = np.sum(area_union)
+        area_pred_label = np.sum(pred_seg_cls)
+        area_label = np.sum(label_cls)
+
+        # Add result to category-specific array elements
+        area_intersect_sum[cls_idx] = area_intersect
+        area_union_sum[cls_idx] = area_union
+        area_pred_label_sum[cls_idx] = area_pred_label
+        area_label_sum[cls_idx] = area_label
+
+    area_intersect_sum = torch.tensor(area_intersect_sum)
+    area_union_sum = torch.tensor(area_union_sum)
+    area_pred_label_sum = torch.tensor(area_pred_label_sum)
+    area_label_sum = torch.tensor(area_label_sum)
+
+    return area_intersect_sum, area_union_sum, area_pred_label_sum, area_label_sum
 
 
 def parse_args():
@@ -153,7 +233,7 @@ def parse_args():
     parser.add_argument('dataset_split', type=str, help='train, val, etc.')
     parser.add_argument('model_type',
                         type=str,
-                        help='\{rp_clip | concept_fusion\}')
+                        help='\{rp_clip | concept_fusion | lseg\}')
     parser.add_argument('ckpt_path',
                         type=str,
                         default=None,
@@ -163,11 +243,28 @@ def parse_args():
                         default=None,
                         help='\{vit_h|TODO\}')
     parser.add_argument('--img_target_size', type=int, default=1024)
+    parser.add_argument('--eval_type',
+                        type=str,
+                        default='most_sim',
+                        help='\{most_sim | suff_sim\}')
+    parser.add_argument('--sim_thresh_dict_path', type=str, default=None)
     args = parser.parse_args()
     return args
 
 
 if __name__ == '__main__':
+    '''
+    How to use
+
+    (1) Most similar evaluation
+        --eval_type most_sim
+    
+    (2) Sufficient similarity evaluation
+        --eval_type suff_sim
+        Optionally
+        --sim_thresh_dict_path <path to precomputed sim_thresh dict>
+
+    '''
     args = parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -176,16 +273,17 @@ if __name__ == '__main__':
     #############
     #  Dataset
     #############
-    if args.dataset_type == 'mapillary':
-        dataset = MapillaryVistasV1_2Dataset(args.dataset_path,
-                                             args.dataset_split,
-                                             args.img_target_size)
-        cls_txts, rgbs = get_mapillary_vistas_classes_and_rgbs()
-    else:
-        raise IOError(f'Dataset not implemented ({args.dataset_type})')
+    out = load_dataset(args.dataset_type, args.dataset_path,
+                       args.dataset_split, args.img_target_size)
+    dataset, cls_txts, rgbs = out
 
     num_clss = len(cls_txts)
-    ignore_idx = np.iinfo(np.uint32).max
+
+    # For evaluating overlapping high-level semantics
+    if args.dataset_type in ['coco_cseg']:
+        hierarchical = True
+    else:
+        hierarchical = False
 
     #########################################
     #  Annotation --> embedding conversion
@@ -200,6 +298,10 @@ if __name__ == '__main__':
 
     txt2idx_star = load_register(args.txt2idx_star_path)
     idx_star2emb = load_register(args.idx_star2emb_path)
+
+    cls_txt2cls_idx = {}
+    for cls_idx, cls_txt in enumerate(cls_txts):
+        cls_txt2cls_idx[cls_txt] = cls_idx
 
     # Normalize embedding vectors
     idx_star2emb = {key: F.normalize(val) for key, val in idx_star2emb.items()}
@@ -234,6 +336,7 @@ if __name__ == '__main__':
         cls_embs = []
         for cls_txt in cls_txts:
             emb = model.conv_txt2emb(cls_txt)
+            emb /= torch.norm(emb)
             cls_embs.append(emb)
         cls_embs = torch.cat(cls_embs)  # (19, D)
 
@@ -248,15 +351,69 @@ if __name__ == '__main__':
     total_area_pred_label = torch.zeros((num_clss))
     total_area_label = torch.zeros((num_clss))
 
+    ##############################################
+    #  Compute sufficient similarity thresholds
+    ##############################################
+    if args.eval_type == 'suff_sim' and args.sim_thresh_dict_path is None:
+
+        K = len(cls_txts)
+        sim_poss = [[] for _ in range(K)]
+        sim_negs = [[] for _ in range(K)]
+
+        for sample_idx in tqdm(range(len(dataset))):
+
+            img, label = dataset[sample_idx]
+            with torch.no_grad():
+                emb_map = model.forward(img)
+            emb_map = emb_map.cpu().numpy()
+
+            sim_pos, sim_neg = comp_sim(emb_map, label, cls_embs,
+                                        idx_star2cls_idx)
+
+            for k in range(K):
+                sim_poss[k].extend(sim_pos[k])
+                sim_negs[k].extend(sim_neg[k])
+
+        # Compute thresholds as optimal decision boundary points
+        sim_threshs = [None] * K
+        for k in range(K):
+            sim_pos = sim_poss[k]
+            sim_neg = sim_negs[k]
+            if len(sim_pos) > 0 and len(sim_neg) > 0:
+                dec_b = comp_logreg_decision_point(sim_pos, sim_neg)
+                sim_threshs[k] = dec_b
+        # Clip similarity thresholds
+        sim_threshs = [
+            min(1, max(-1, s)) if s is not None else s for s in sim_threshs
+        ]
+        print_sim_treshs(sim_threshs, cls_txts, sim_poss, sim_negs)
+        save_thresh_dict(sim_threshs, cls_txts)
+
+    # Load precomputed similarity threshold values from a .pkl file
+    if args.eval_type == 'suff_sim' and args.sim_thresh_dict_path:
+        with open(args.sim_thresh_dict_path, 'rb') as f:
+            sim_thresh_dict = pickle.load(f)
+        sim_threshs = []
+        for cls_txt in cls_txts:
+            sim_thresh = sim_thresh_dict[cls_txt]
+            sim_threshs.append(sim_thresh)
+
     for sample_idx in tqdm(range(len(dataset))):
         img, label = dataset[sample_idx]
 
         emb_map = model.forward(img)
         emb_map = emb_map.cpu().numpy()
 
-        out = intersect_and_union(emb_map, label, num_clss, ignore_idx,
-                                  cls_embs, idx_star2cls_idx)
-        area_intersect, area_union, area_pred_label, area_label = out
+        if args.eval_type == "most_sim":
+            out = intersect_and_union(emb_map, label, num_clss, IGNORE_IDX,
+                                      cls_embs, idx_star2cls_idx, hierarchical)
+            area_intersect, area_union, area_pred_label, area_label = out
+        elif args.eval_type == 'suff_sim':
+            K = len(cls_txts)
+            out = intersect_and_union_tresh(emb_map, label, cls_embs, cls_txts,
+                                            idx_star2cls_idx, cls_txt2cls_idx,
+                                            sim_threshs, K, hierarchical)
+            area_intersect, area_union, area_pred_label, area_label = out
 
         # Add sample results to accumulated counts
         total_area_intersect += area_intersect

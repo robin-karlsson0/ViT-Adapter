@@ -12,7 +12,7 @@ from tools.convert_datasets.txt2idx_star import load_register
 
 
 @DATASETS.register_module()
-class CompSemCityscapesDataset(CustomDataset):
+class CompSemCOCODataset(CustomDataset):
     """
     """
 
@@ -20,19 +20,42 @@ class CompSemCityscapesDataset(CustomDataset):
 
     # Original
     CLASSES += [
-        'ego vehicle', 'static', 'dynamic', 'ground', 'road', 'sidewalk',
-        'parking', 'rail track', 'building', 'wall', 'fence', 'guard rail',
-        'bridge', 'tunnel', 'pole', 'polegroup', 'traffic light',
-        'traffic sign', 'vegetation', 'terrain', 'sky', 'person', 'rider',
-        'car', 'truck', 'bus', 'caravan', 'trailer', 'train', 'motorcycle',
-        'bicycle', 'license plate'
+        'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train',
+        'truck', 'boat', 'traffic light', 'fire hydrant', 'street sign',
+        'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse',
+        'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'hat',
+        'backpack', 'umbrella', 'shoe', 'eye glasses', 'handbag', 'tie',
+        'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball', 'kite',
+        'baseball bat', 'baseball glove', 'skateboard', 'surfboard',
+        'tennis racket', 'bottle', 'plate', 'wine glass', 'cup', 'fork',
+        'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange',
+        'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair',
+        'couch', 'potted plant', 'bed', 'mirror', 'dining table', 'window',
+        'desk', 'toilet', 'door', 'tv', 'laptop', 'mouse', 'remote',
+        'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink',
+        'refrigerator', 'blender', 'book', 'clock', 'vase', 'scissors',
+        'teddy bear', 'hair drier', 'toothbrush', 'hair brush', 'banner',
+        'blanket', 'branch', 'bridge', 'building', 'bush', 'cabinet', 'cage',
+        'cardboard', 'carpet', 'ceiling', 'tile ceiling', 'cloth', 'clothes',
+        'clouds', 'counter', 'cupboard', 'curtain', 'desk', 'dirt', 'door',
+        'fence', 'marble floor', 'floor', 'stone floor', 'tile floor',
+        'wood floor', 'flower', 'fog', 'food', 'fruit', 'furniture', 'grass',
+        'gravel', 'ground', 'hill', 'house', 'leaves', 'light', 'mat', 'metal',
+        'mirror', 'moss', 'mountain', 'mud', 'napkin', 'net', 'paper',
+        'pavement', 'pillow', 'plant', 'plastic', 'platform', 'playingfield',
+        'railing', 'railroad', 'river', 'road', 'rock', 'roof', 'rug', 'salad',
+        'sand', 'sea', 'shelf', 'sky', 'skyscraper', 'snow', 'solid', 'stairs',
+        'stone', 'straw', 'structural', 'table', 'tent', 'textile', 'towel',
+        'tree', 'vegetable', 'brick wall', 'concrete wall', 'wall',
+        'panel wall', 'stone wall', 'tile wall', 'wood wall', 'water',
+        'waterdrops', 'blind window', 'window', 'wood'
     ]
 
     # Upper category
-    CLASSES += ['vehicle', 'other', 'surface', 'structure', 'fauna', 'living']
+    # CLASSES += ['vehicle', 'other', 'surface', 'structure', 'fauna', 'living']
 
     # Material
-    CLASSES += ['metal', 'dirt', 'asphalt', 'concrete', 'organism']
+    # CLASSES += ['metal', 'dirt', 'asphalt', 'concrete', 'organism']
 
     # Type  NOTE: Subsumed by 'original' labels
     # CLASSES += []
@@ -48,13 +71,13 @@ class CompSemCityscapesDataset(CustomDataset):
     PALETTE = tuple(PALETTE)
 
     def __init__(self,
-                 txt2idx_star_path='./txt2idx_star_exp03.pkl',
-                 idx_star2emb_path='./idx_star2emb_exp03.pkl',
+                 txt2idx_star_path='./txt2idx_star_cseg_coco_orig.pkl',
+                 idx_star2emb_path='./idx_star2emb_cseg_coco_orig.pkl',
                  **kwargs):
-        super(CompSemCityscapesDataset, self).__init__(img_suffix='.jpg',
-                                                       seg_map_suffix='.npz',
-                                                       reduce_zero_label=False,
-                                                       **kwargs)
+        super(CompSemCOCODataset, self).__init__(img_suffix='.jpg',
+                                                 seg_map_suffix='.npz',
+                                                 reduce_zero_label=False,
+                                                 **kwargs)
         self.txt2idx_star = load_register(txt2idx_star_path)
 
         self.idx_star2emb = load_register(idx_star2emb_path)
@@ -178,7 +201,7 @@ class CompSemCityscapesDataset(CustomDataset):
     def intersect_and_union_tresh(self,
                                   pred_embs,
                                   label,
-                                  sim_treshs: np.array,
+                                  sim_threshs: np.array,
                                   num_classes,
                                   label_map=dict()):
         """Calculate IoU by sufficient similarity thresholding.
@@ -186,7 +209,7 @@ class CompSemCityscapesDataset(CustomDataset):
         Args:
             pred_embs (ndarray | str): Predicted embedding map (D, H, W).
             label (ndarray | str): Ground truth segmentation idx map (H, W).
-            sim_treshs: Threshold values for sufficient similarity (K).
+            sim_threshs: Threshold values for sufficient similarity (K).
             num_classes (int): Number of categories.
             ignore_index (int): Index that will be ignored in evaluation.
             label_map (dict): Mapping old labels to new labels. The parameter will
@@ -221,7 +244,7 @@ class CompSemCityscapesDataset(CustomDataset):
         #     emb = self.idx_star2emb[idx_star]
         #     mask = label == idx_star
         #     pred_embs_test[:, mask] = emb.reshape(-1, 1)
-        #     sim_treshs[cls_idx] = 0.9
+        #     sim_threshs[cls_idx] = 0.9
         # pred_embs = pred_embs_test
 
         # Transform semantics --> label probability --> seg map (H,W)
@@ -248,31 +271,37 @@ class CompSemCityscapesDataset(CustomDataset):
         area_pred_label_sum = np.zeros(num_classes)
         area_label_sum = np.zeros(num_classes)
 
+        # Generate masks and
+        label_h, label_w = label.shape
+        label_clss = np.zeros((len(self.CLASSES), label_h, label_w))
+
         for idx_star in idx_stars:
             # Only process valid categories
             if idx_star not in self.idx_star2cls_idx.keys():
                 continue
+
+            mask = label == idx_star
+
             cls_idx = self.idx_star2cls_idx[idx_star]
+            label_clss[cls_idx][mask] = True
+
+        # for cls_idx in cls_idxs:
+        for cls_idx in range(len(self.CLASSES)):
 
             # Skip evaluating semantics without a threshold value
-            sim_thresh = sim_treshs[cls_idx]
+            sim_thresh = sim_threshs[cls_idx]
             if sim_thresh is None:
                 continue
 
-            # Boolean annotation mask (H, W) for current category
-            label_cls = np.zeros_like(label, dtype=bool)
-            mask = label == idx_star
-            label_cls[mask] = True
-
             # Boolean prediction mask (H, W) by sufficient similarity
-            pred_seg = np.zeros_like(label_cls, dtype=bool)
+            pred_seg = np.zeros_like(label, dtype=bool)
             mask = pred_sims[cls_idx] > sim_thresh
             pred_seg[mask] = True
 
             # NOTE Need to remove 'ignore' idx from mask
             valid_mask = (label != np.iinfo(np.uint32).max)
             pred_seg = pred_seg[valid_mask]
-            label_cls = label_cls[valid_mask]
+            label_cls = label_clss[cls_idx][valid_mask]
 
             # Compute intersection and union by #elements
             area_intersect = np.logical_and(pred_seg, label_cls)
@@ -325,13 +354,13 @@ class CompSemCityscapesDataset(CustomDataset):
 
         return pre_eval_results
 
-    def pre_eval_thresh(self, preds, sim_treshs: torch.tensor, indices):
+    def pre_eval_thresh(self, preds, sim_threshs: torch.tensor, indices):
         """Collect eval result from each iteration.
 
         Args:
             preds (list[torch.Tensor] | torch.Tensor): the segmentation logit
                 after argmax, shape (N, H, W).
-            sim_treshs: Array (K) of sufficient similarity threshold values.
+            sim_threshs: Array (K) of sufficient similarity threshold values.
             indices (list[int] | int): the prediction related ground truth
                 indices.
 
@@ -350,7 +379,7 @@ class CompSemCityscapesDataset(CustomDataset):
         for pred, index in zip(preds, indices):
             seg_map = self.get_gt_seg_map_by_idx(index)
             pre_eval_results.append(
-                self.intersect_and_union_tresh(pred, seg_map, sim_treshs,
+                self.intersect_and_union_tresh(pred, seg_map, sim_threshs,
                                                len(self.CLASSES),
                                                self.label_map))
 

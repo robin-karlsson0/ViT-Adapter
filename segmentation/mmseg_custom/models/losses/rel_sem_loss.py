@@ -30,11 +30,19 @@ class RelativeSemanticLoss(nn.Module):
         self.loss_weight = loss_weight
         self._loss_name = loss_name
 
+        if not os.path.isfile(txt2idx_star_path):
+            raise IOError(f'\'txt2idx_star\' not found ({txt2idx_star_path})')
+        if not os.path.isfile(idx_star2emb_path):
+            raise IOError(f'\'idx_star2emb\' not found ({idx_star2emb_path})')
+
         if dataset == 'adechallenge':
             idx_star2cls_idx, cls_embs = self.load_ade_challenge_info(
                 txt2idx_star_path, idx_star2emb_path, objectinfo150_path)
         elif dataset == 'coco':
             idx_star2cls_idx, cls_embs = self.load_coco_info(
+                txt2idx_star_path, idx_star2emb_path)
+        elif dataset == 'coco_cseg':
+            idx_star2cls_idx, cls_embs = self.load_coco_cseg_info(
                 txt2idx_star_path, idx_star2emb_path)
         elif dataset == 'bdd100k':
             idx_star2cls_idx, cls_embs = self.load_bdd100k_info(
@@ -223,35 +231,101 @@ class RelativeSemanticLoss(nn.Module):
         cls_txts = [
             'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
             'train', 'truck', 'boat', 'traffic light', 'fire hydrant',
-            'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog',
-            'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe',
-            'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
-            'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat',
-            'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
-            'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl',
-            'banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot',
-            'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
-            'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop',
-            'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven',
-            'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase',
-            'scissors', 'teddy bear', 'hair drier', 'toothbrush', 'banner',
-            'blanket', 'branch', 'bridge', 'building-other', 'bush', 'cabinet',
-            'cage', 'cardboard', 'carpet', 'ceiling-other', 'ceiling-tile',
-            'cloth', 'clothes', 'clouds', 'counter', 'cupboard', 'curtain',
-            'desk-stuff', 'dirt', 'door-stuff', 'fence', 'floor-marble',
-            'floor-other', 'floor-stone', 'floor-tile', 'floor-wood', 'flower',
-            'fog', 'food-other', 'fruit', 'furniture-other', 'grass', 'gravel',
-            'ground-other', 'hill', 'house', 'leaves', 'light', 'mat', 'metal',
-            'mirror-stuff', 'moss', 'mountain', 'mud', 'napkin', 'net',
-            'paper', 'pavement', 'pillow', 'plant-other', 'plastic',
-            'platform', 'playingfield', 'railing', 'railroad', 'river', 'road',
-            'rock', 'roof', 'rug', 'salad', 'sand', 'sea', 'shelf',
-            'sky-other', 'skyscraper', 'snow', 'solid-other', 'stairs',
-            'stone', 'straw', 'structural-other', 'table', 'tent',
-            'textile-other', 'towel', 'tree', 'vegetable', 'wall-brick',
-            'wall-concrete', 'wall-other', 'wall-panel', 'wall-stone',
-            'wall-tile', 'wall-wood', 'water-other', 'waterdrops',
-            'window-blind', 'window-other', 'wood'
+            'street sign', 'stop sign', 'parking meter', 'bench', 'bird',
+            'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra',
+            'giraffe', 'hat', 'backpack', 'umbrella', 'shoe', 'eye glasses',
+            'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard',
+            'sports ball', 'kite', 'baseball bat', 'baseball glove',
+            'skateboard', 'surfboard', 'tennis racket', 'bottle', 'plate',
+            'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana',
+            'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog',
+            'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
+            'mirror', 'dining table', 'window', 'desk', 'toilet', 'door', 'tv',
+            'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave',
+            'oven', 'toaster', 'sink', 'refrigerator', 'blender', 'book',
+            'clock', 'vase', 'scissors', 'teddy bear', 'hair drier',
+            'toothbrush', 'hair brush', 'banner', 'blanket', 'branch',
+            'bridge', 'building', 'bush', 'cabinet', 'cage', 'cardboard',
+            'carpet', 'ceiling', 'tile ceiling', 'cloth', 'clothes', 'clouds',
+            'counter', 'cupboard', 'curtain', 'desk', 'dirt', 'door', 'fence',
+            'marble floor', 'floor', 'stone floor', 'tile floor', 'wood floor',
+            'flower', 'fog', 'food', 'fruit', 'furniture', 'grass', 'gravel',
+            'ground', 'hill', 'house', 'leaves', 'light', 'mat', 'metal',
+            'mirror', 'moss', 'mountain', 'mud', 'napkin', 'net', 'paper',
+            'pavement', 'pillow', 'plant', 'plastic', 'platform',
+            'playingfield', 'railing', 'railroad', 'river', 'road', 'rock',
+            'roof', 'rug', 'salad', 'sand', 'sea', 'shelf', 'sky',
+            'skyscraper', 'snow', 'solid', 'stairs', 'stone', 'straw',
+            'structural', 'table', 'tent', 'textile', 'towel', 'tree',
+            'vegetable', 'brick wall', 'concrete wall', 'wall', 'panel wall',
+            'stone wall', 'tile wall', 'wood wall', 'water', 'waterdrops',
+            'blind window', 'window', 'wood'
+        ]
+
+        # Generate class embedding row matrix (K, D)
+        cls_embs = []
+        for cls_txt in cls_txts:
+            idx = txt2idx_star[cls_txt]
+            emb = idx_star2emb[idx]
+            cls_embs.append(emb)
+        cls_embs = torch.cat(cls_embs)
+
+        # Dict for converting labels from 'idx*' maps --> 'class idx' maps
+        idx_star2cls_idx = {}
+        for cls_idx, cls_txt in enumerate(cls_txts):
+            idx_star = txt2idx_star[cls_txt]
+            idx_star2cls_idx[idx_star] = cls_idx
+
+        return idx_star2cls_idx, cls_embs
+
+    @staticmethod
+    def load_coco_cseg_info(
+            txt2idx_star_path: str = './txt2idx_star.pkl',
+            idx_star2emb_path: str = './idx_star2emb.pkl') -> tuple:
+        """Returns mapping and class embeddings for the ADE Challenge dataset.
+        """
+        txt2idx_star = load_register(txt2idx_star_path)
+        idx_star2emb = load_register(idx_star2emb_path)
+
+        # Normalize embedding vectors
+        idx_star2emb = {
+            key: val / np.linalg.norm(val)
+            for key, val in idx_star2emb.items()
+        }
+
+        cls_txts = [
+            'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
+            'train', 'truck', 'boat', 'traffic light', 'fire hydrant',
+            'street sign', 'stop sign', 'parking meter', 'bench', 'bird',
+            'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra',
+            'giraffe', 'hat', 'backpack', 'umbrella', 'shoe', 'eye glasses',
+            'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard',
+            'sports ball', 'kite', 'baseball bat', 'baseball glove',
+            'skateboard', 'surfboard', 'tennis racket', 'bottle', 'plate',
+            'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana',
+            'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog',
+            'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
+            'mirror', 'dining table', 'window', 'desk', 'toilet', 'door', 'tv',
+            'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave',
+            'oven', 'toaster', 'sink', 'refrigerator', 'blender', 'book',
+            'clock', 'vase', 'scissors', 'teddy bear', 'hair drier',
+            'toothbrush', 'hair brush', 'banner', 'blanket', 'branch',
+            'bridge', 'building', 'bush', 'cabinet', 'cage', 'cardboard',
+            'carpet', 'ceiling', 'tile ceiling', 'cloth', 'clothes', 'clouds',
+            'counter', 'cupboard', 'curtain', 'dirt', 'fence', 'marble floor',
+            'floor', 'stone floor', 'tile floor', 'wood floor', 'flower',
+            'fog', 'food', 'fruit', 'furniture', 'grass', 'gravel', 'ground',
+            'hill', 'house', 'leaves', 'light', 'mat', 'metal', 'moss',
+            'mountain', 'mud', 'napkin', 'net', 'paper', 'pavement', 'pillow',
+            'plant', 'plastic', 'platform', 'playingfield', 'railing',
+            'railroad', 'river', 'road', 'rock', 'roof', 'rug', 'salad',
+            'sand', 'sea', 'shelf', 'sky', 'skyscraper', 'snow', 'solid',
+            'stairs', 'stone', 'straw', 'structural', 'table', 'tent',
+            'textile', 'towel', 'tree', 'vegetable', 'brick wall',
+            'concrete wall', 'wall', 'panel wall', 'stone wall', 'tile wall',
+            'wood wall', 'water', 'waterdrops', 'blind window', 'wood',
+            'vehicle', 'outdoor', 'animal', 'accessory', 'sports', 'kitchen',
+            'electronic', 'appliance', 'indoor', 'raw material'
         ]
 
         # Generate class embedding row matrix (K, D)

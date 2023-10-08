@@ -8,12 +8,14 @@ import torch.distributed as dist
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 from mmcv.runner import HOOKS, build_optimizer, build_runner, get_dist_info
 from mmcv.utils import build_from_cfg
+from mmseg.utils import get_root_logger
 
-from mmseg.core import DistEvalHook, EvalHook
+# from mmseg.core import DistEvalHook, EvalHook
+from mmseg_custom.core.evaluation.eval_hooks import (DistEvalHookThresh,
+                                                     EvalHookThresh)
 # from mmseg.datasets import build_dataloader, build_dataset
 # from mmseg.datasets import build_dataset
 from mmseg_custom.datasets import build_dataloader, build_dataset
-from mmseg.utils import get_root_logger
 
 
 def init_random_seed(seed=None, device='cuda'):
@@ -140,10 +142,36 @@ def train_segmentor(model,
             shuffle=False)
         eval_cfg = cfg.get('evaluation', {})
         eval_cfg['by_epoch'] = cfg.runner['type'] != 'IterBasedRunner'
-        eval_hook = DistEvalHook if distributed else EvalHook
+
+        cfg_data_train_eval = cfg.data.train
+        cfg_data_train_eval.pipeline = cfg.data.val.pipeline
+        val_dataset_thresh = build_dataset(cfg_data_train_eval,
+                                           dict(test_mode=True))
+        # NOTE: Cannot be randomly subsampled as annotations loaded by filename
+        #       order! ==> Subsample from 0 --> N samples instead
+        # rnd_idxs = np.random.choice(np.arange(0, len(val_dataset_thresh)),
+        #                             size=eval_cfg.thresh_smpls,
+        #                             replace=False)
+        val_dataset_thresh = torch.utils.data.Subset(
+            val_dataset_thresh, np.arange(0, eval_cfg.thresh_smpls))
+        val_dataloader_thresh = build_dataloader(
+            val_dataset_thresh,
+            samples_per_gpu=1,
+            workers_per_gpu=cfg.data.workers_per_gpu,
+            dist=distributed,
+            shuffle=False)
+
+        # eval_hook = DistEvalHook if distributed else EvalHook
+        # # In this PR (https://github.com/open-mmlab/mmcv/pull/1193), the
+        # # priority of IterTimerHook has been modified from 'NORMAL' to 'LOW'.
+        # runner.register_hook(eval_hook(val_dataloader, **eval_cfg),
+        #                      priority='LOW')
+        eval_hook = DistEvalHookThresh if distributed else EvalHookThresh
         # In this PR (https://github.com/open-mmlab/mmcv/pull/1193), the
         # priority of IterTimerHook has been modified from 'NORMAL' to 'LOW'.
-        runner.register_hook(eval_hook(val_dataloader, **eval_cfg),
+        runner.register_hook(eval_hook(val_dataloader,
+                                       dataloader_thresh=val_dataloader_thresh,
+                                       **eval_cfg),
                              priority='LOW')
 
     # user-defined hooks

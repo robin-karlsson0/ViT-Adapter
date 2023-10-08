@@ -6,6 +6,8 @@ from .builder import *  # noqa: F401,F403
 from .cityscapes_vl import CityscapesVLDataset  # noqa: F401,F403
 from .coco_stuff164k import COCOStuffVLDataset  # noqa: F401,F403
 from .comp_sem_cityscapes import CompSemCityscapesDataset  # noqa: F401,F403
+from .comp_sem_coco import CompSemCOCODataset  # noqa: F401,F403
+from .comp_sem_coco_cseg import CompSemCOCOCsegDataset  # noqa: F401,F403
 from .concat_dataset import ConcatVLDataset  # noqa: F401,F403
 from .idd import IDDVLDataset  # noqa: F401,F403
 from .mapillary import MapillaryDataset  # noqa: F401,F403

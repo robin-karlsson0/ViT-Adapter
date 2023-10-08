@@ -167,18 +167,36 @@ class LSeg(BaseModel):
 
         self.scratch.output_conv = head
 
-    def forward(self, x):
+    def forward(self, x: torch.tensor):
+        '''
+        
+        Dense Prediction Transformer (DPT)
+          Backbone:
+            x --> ViT() --> MS token matrices --> Reassemble() --> MS feat maps
+          Neck:
+            MS feat maps --> Fusion() --> Feat map (B, 256, 240, 320)
+          Decoder head:
+            Feat map (256) --> Proj() --> Low-res VL emb map (512)
 
-        if self.channels_last == True:
+        Args:
+            x: float32 image tensor (B, 3, 480, 640).
+        
+        Returns:
+            Low-res VL emb map (B, 512, 240, 320).
+        '''
+
+        if self.channels_last:
             x.contiguous(memory_format=torch.channels_last)
 
         layer_1, layer_2, layer_3, layer_4 = forward_vit(self.pretrained, x)
 
+        # Conv2d projection: Multi dim feats --> 256 feats
         layer_1_rn = self.scratch.layer1_rn(layer_1)  # type: ignore
         layer_2_rn = self.scratch.layer2_rn(layer_2)  # type: ignore
         layer_3_rn = self.scratch.layer3_rn(layer_3)  # type: ignore
         layer_4_rn = self.scratch.layer4_rn(layer_4)  # type: ignore
 
+        # Fusion blocks (w. 2x upsamplings) --> Feat map (B, 256, 240, 320)
         path_4 = self.scratch.refinenet4(layer_4_rn)  # type: ignore
         path_3 = self.scratch.refinenet3(path_4, layer_3_rn)  # type: ignore
         path_2 = self.scratch.refinenet2(path_3, layer_2_rn)  # type: ignore
@@ -188,6 +206,7 @@ class LSeg(BaseModel):
         self.logit_scale = self.logit_scale.to(x.device)
         # text_features = self.clip_pretrained.encode_text(text)
 
+        # Projection: (256) --> (512) VL embeddings
         image_features = self.scratch.head1(path_1)  # type: ignore
 
         # imshape = image_features.shape

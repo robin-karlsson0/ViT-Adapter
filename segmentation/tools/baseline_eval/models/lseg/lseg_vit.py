@@ -110,16 +110,30 @@ class Transpose(nn.Module):
 
 
 def forward_vit(pretrained, x):
+    '''
+    Args:
+        x: (B, 3, 480, 640)
+
+    Returns:
+        Multiscale feature maps
+            layer_1: (B, 256, 120, 160)
+            layer_2: (B, 512, 60, 80)
+            layer_3: (B, 1024, 30, 40)
+            layer_4: (B, 1024, 15, 20)
+
+    '''
     b, c, h, w = x.shape
 
     # encoder
     glob = pretrained.model.forward_flex(x)
 
+    # Intermediate token row vector matrices (B, 1201, 1024)
     layer_1 = pretrained.activations["1"]
     layer_2 = pretrained.activations["2"]
     layer_3 = pretrained.activations["3"]
     layer_4 = pretrained.activations["4"]
 
+    # Projection ? + dim transpose (B, 1024, 1200)
     layer_1 = pretrained.act_postprocess1[0:2](layer_1)
     layer_2 = pretrained.act_postprocess2[0:2](layer_2)
     layer_3 = pretrained.act_postprocess3[0:2](layer_3)
@@ -134,6 +148,8 @@ def forward_vit(pretrained, x):
             ]),
         ))
 
+    # Reasseble blocks (1/2): Concatenate
+    # Reshape token matrices (B, 1024, 1200) --> feat maps (B, 1024, 30, 40)
     if layer_1.ndim == 3:
         layer_1 = unflatten(layer_1)
     if layer_2.ndim == 3:
@@ -143,6 +159,8 @@ def forward_vit(pretrained, x):
     if layer_4.ndim == 3:
         layer_4 = unflatten(layer_4)
 
+    # Reassemble blocks (2/2): Project + 4x upsample
+    # Feat maps (B, 1024, 30, 40) --> (B, 256, 120, 160)
     layer_1 = pretrained.act_postprocess1[3:len(pretrained.act_postprocess1)](
         layer_1)
     layer_2 = pretrained.act_postprocess2[3:len(pretrained.act_postprocess2)](

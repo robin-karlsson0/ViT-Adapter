@@ -73,6 +73,16 @@ class LSegModel():
     def forward(self, img: np.array) -> torch.tensor:
         '''Returns an embedding map with CLIP embeddings from region proposals.
 
+        img --> DPT() --> low-res VL emb map --> NN interp --> VL emb map
+
+        Dense Prediction Transformer (DPT)
+          Backbone:
+            x --> ViT() --> MS token matrices --> Reassemble() --> MS feat maps
+          Neck:
+            MS feat maps --> Fusion() --> Feat map (B, 512, 240, 320)
+          Decoder head:
+            Feat map (256) --> Proj() --> Low-res VL emb map (512)
+
         Args:
             img: uint8 RGB image (e.g. cv2.cvtColor(cv2.imread(), BGR2RGB)).
  
@@ -80,7 +90,7 @@ class LSegModel():
             VL embedding map (D, H, W) as float tensor.
         '''
         H, W, _ = img.shape
-        img = self.preproc_img(img)
+        img = self.preproc_img(img)  # Resizes any image to (B, 3, 640, 480)
 
         emb_map = self.model.forward(img)
         emb_map = F.normalize(emb_map, dim=1)

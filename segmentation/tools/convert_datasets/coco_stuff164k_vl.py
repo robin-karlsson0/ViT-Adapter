@@ -1,14 +1,12 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
 import os.path as osp
-from functools import partial
 from glob import glob
 
 import mmcv
 import numpy as np
-from PIL import Image
 
-from tools.convert_datasets.txt2idx_star import (load_register, add_entry,
+from tools.convert_datasets.txt2idx_star import (add_entry, load_register,
                                                  save_register)
 
 COCO_LEN = 123287
@@ -17,7 +15,11 @@ NP_TYPE = np.uint32
 
 LABEL_SUFFIX = "_vl_emb_idxs.npz"
 
+# NOTE: .PNG label indices are SHIFTED -1 from the provided labels
+# Ref: https://github.com/nightrome/cocostuff/issues/7
+# Ref: https://github.com/nightrome/cocostuff/blob/master/labels.txt
 IDX2TXT_COCOSTUFF = {
+    #: 'unlabeled'
     0: 'person',
     1: 'bicycle',
     2: 'car',
@@ -29,6 +31,7 @@ IDX2TXT_COCOSTUFF = {
     8: 'boat',
     9: 'traffic light',
     10: 'fire hydrant',
+    11: 'street sign',
     12: 'stop sign',
     13: 'parking meter',
     14: 'bench',
@@ -42,8 +45,11 @@ IDX2TXT_COCOSTUFF = {
     22: 'bear',
     23: 'zebra',
     24: 'giraffe',
+    25: 'hat',
     26: 'backpack',
     27: 'umbrella',
+    28: 'shoe',
+    29: 'eye glasses',
     30: 'handbag',
     31: 'tie',
     32: 'suitcase',
@@ -58,6 +64,7 @@ IDX2TXT_COCOSTUFF = {
     41: 'surfboard',
     42: 'tennis racket',
     43: 'bottle',
+    44: 'plate',
     45: 'wine glass',
     46: 'cup',
     47: 'fork',
@@ -78,8 +85,12 @@ IDX2TXT_COCOSTUFF = {
     62: 'couch',
     63: 'potted plant',
     64: 'bed',
+    65: 'mirror',
     66: 'dining table',
+    67: 'window',
+    68: 'desk',
     69: 'toilet',
+    70: 'door',
     71: 'tv',
     72: 'laptop',
     73: 'mouse',
@@ -91,6 +102,7 @@ IDX2TXT_COCOSTUFF = {
     79: 'toaster',
     80: 'sink',
     81: 'refrigerator',
+    82: 'blender',
     83: 'book',
     84: 'clock',
     85: 'vase',
@@ -98,48 +110,49 @@ IDX2TXT_COCOSTUFF = {
     87: 'teddy bear',
     88: 'hair drier',
     89: 'toothbrush',
+    90: 'hair brush',
     91: 'banner',
     92: 'blanket',
     93: 'branch',
     94: 'bridge',
-    95: 'building-other',
+    95: 'building',
     96: 'bush',
     97: 'cabinet',
     98: 'cage',
     99: 'cardboard',
     100: 'carpet',
-    101: 'ceiling-other',
-    102: 'ceiling-tile',
+    101: 'ceiling',
+    102: 'tile ceiling',
     103: 'cloth',
     104: 'clothes',
     105: 'clouds',
     106: 'counter',
     107: 'cupboard',
     108: 'curtain',
-    109: 'desk-stuff',
+    109: 'desk',
     110: 'dirt',
-    111: 'door-stuff',
+    111: 'door',
     112: 'fence',
-    113: 'floor-marble',
-    114: 'floor-other',
-    115: 'floor-stone',
-    116: 'floor-tile',
-    117: 'floor-wood',
+    113: 'marble floor',
+    114: 'floor',
+    115: 'stone floor',
+    116: 'tile floor',
+    117: 'wood floor',
     118: 'flower',
     119: 'fog',
-    120: 'food-other',
+    120: 'food',
     121: 'fruit',
-    122: 'furniture-other',
+    122: 'furniture',
     123: 'grass',
     124: 'gravel',
-    125: 'ground-other',
+    125: 'ground',
     126: 'hill',
     127: 'house',
     128: 'leaves',
     129: 'light',
     130: 'mat',
     131: 'metal',
-    132: 'mirror-stuff',
+    132: 'mirror',
     133: 'moss',
     134: 'mountain',
     135: 'mud',
@@ -148,7 +161,7 @@ IDX2TXT_COCOSTUFF = {
     138: 'paper',
     139: 'pavement',
     140: 'pillow',
-    141: 'plant-other',
+    141: 'plant',
     142: 'plastic',
     143: 'platform',
     144: 'playingfield',
@@ -163,33 +176,32 @@ IDX2TXT_COCOSTUFF = {
     153: 'sand',
     154: 'sea',
     155: 'shelf',
-    156: 'sky-other',
+    156: 'sky',
     157: 'skyscraper',
     158: 'snow',
-    159: 'solid-other',
+    159: 'solid',
     160: 'stairs',
     161: 'stone',
     162: 'straw',
-    163: 'structural-other',
+    163: 'structural',
     164: 'table',
     165: 'tent',
-    166: 'textile-other',
+    166: 'textile',
     167: 'towel',
     168: 'tree',
     169: 'vegetable',
-    170: 'wall-brick',
-    171: 'wall-concrete',
-    172: 'wall-other',
-    173: 'wall-panel',
-    174: 'wall-stone',
-    175: 'wall-tile',
-    176: 'wall-wood',
-    177: 'water-other',
+    170: 'brick wall',
+    171: 'concrete wall',
+    172: 'wall',
+    173: 'panel wall',
+    174: 'stone wall',
+    175: 'tile wall',
+    176: 'wood wall',
+    177: 'water',
     178: 'waterdrops',
-    179: 'window-blind',
-    180: 'window-other',
+    179: 'blind window',
+    180: 'window',
     181: 'wood',
-    255: 'other',
 }
 
 
@@ -245,7 +257,8 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description=\
         'Convert COCO Stuff 164k annotations to mmsegmentation format')  # noqa
-    parser.add_argument('coco_path', help='Path to \'stuffthingmaps_trainval2017\'')
+    parser.add_argument('coco_path',
+                        help='Path to \'stuffthingmaps_trainval2017\'')
     parser.add_argument('-o', '--out_dir', help='output path')
     parser.add_argument('--nproc',
                         default=1,
@@ -294,8 +307,12 @@ def main():
     test_tasks = [(path, txt2idx_star) for path in test_list]
 
     if args.nproc > 1:
-        mmcv.track_parallel_progress(convert_label_to_idx_star, train_tasks, nproc=nproc)
-        mmcv.track_parallel_progress(convert_label_to_idx_star, test_tasks, nproc=nproc)
+        mmcv.track_parallel_progress(convert_label_to_idx_star,
+                                     train_tasks,
+                                     nproc=nproc)
+        mmcv.track_parallel_progress(convert_label_to_idx_star,
+                                     test_tasks,
+                                     nproc=nproc)
     else:
         mmcv.track_progress(convert_label_to_idx_star, train_tasks)
         mmcv.track_progress(convert_label_to_idx_star, test_tasks)

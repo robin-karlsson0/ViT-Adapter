@@ -3,6 +3,7 @@ import os
 
 import clip
 import numpy as np
+import open_clip
 import torch
 from sentence_transformers import SentenceTransformer
 
@@ -31,7 +32,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     encoder_type = args.encoder
-    if encoder_type not in ['clip', 'sbert']:
+    if encoder_type not in ['clip', 'openclip', 'sbert']:
         print(f'Specified encoder not supported ({encoder_type})')
         exit()
 
@@ -48,7 +49,15 @@ if __name__ == '__main__':
     if encoder_type == 'clip':
         model, _ = clip.load('ViT-L/14@336px', device)
         encoder = model.encode_text
-    if encoder_type == 'sbert':
+        tokenize = clip.tokenize
+    elif encoder_type == 'openclip':
+        model, _, preprocess = open_clip.create_model_and_transforms(
+            'ViT-bigG-14', pretrained='laion2b_s39b_b160k')
+        model.to(device)
+        model.eval()
+        encoder = model
+        tokenize = open_clip.tokenize
+    elif encoder_type == 'sbert':
         model = SentenceTransformer('all-mpnet-base-v2', device=device)
         encoder = model.encode
     else:
@@ -59,10 +68,11 @@ if __name__ == '__main__':
     idx_star2emb = {}
     for txt, idx in txt2idx_star.items():
 
-        if encoder_type == 'clip':
-            txt = torch.tensor(clip.tokenize(txt)).to(device)
+        if encoder_type in ['clip', 'openclip']:
+            tok = tokenize(txt).to(device)
             with torch.no_grad():
-                emb = encoder(txt)
+                emb = model.encode_text(tok).float()
+                emb /= emb.norm(dim=-1, keepdim=True)
                 emb = emb.cpu().float()
 
         elif encoder_type == 'sbert':
