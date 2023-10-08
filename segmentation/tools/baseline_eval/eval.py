@@ -67,6 +67,49 @@ def print_miou_results(total_area_intersect, total_area_union,
     print('\n' + summary_table_data.get_string())
 
 
+def viz_predictions(pred_embs: torch.tensor, cls_txts: list,
+                    cls_txt2cls_idx: dict, cls_embs: torch.tensor):
+    '''
+        '''
+    import matplotlib.pyplot as plt
+    import PIL.Image as Image
+    num_preds = len(cls_txts)
+
+    img = Image.open(
+        '/home/robin/datasets/concat_coco_cseg_weighted/imgs/viz/0001081.jpg')
+    h, w = pred_embs.shape[1:]
+    img = img.resize((w, h))
+
+    # Predict partition
+    cls_embs_subset = []
+    for cls_txt in cls_txts:
+        if cls_txt == 'other':
+            cls_emb = model.conv_txt2emb(cls_txt)
+            cls_emb /= torch.norm(cls_emb)
+            cls_emb = cls_emb[0]
+        else:
+            cls_idx = cls_txt2cls_idx[cls_txt]
+            cls_emb = cls_embs[cls_idx]
+        cls_embs_subset.append(cls_emb)
+    cls_embs_subset = torch.stack(cls_embs_subset)
+
+    pred_embs = torch.tensor(pred_embs).unsqueeze(0)
+    pred_logits = F.conv2d(pred_embs, cls_embs_subset[:, :, None, None])
+    pred_probs = F.softmax(pred_logits, dim=1)
+    pred_seg = pred_probs.argmax(dim=1)
+    pred_seg = pred_seg[0].numpy()  # (H,W)
+
+    for idx, cls_txt in enumerate(cls_txts):
+        mask = pred_seg == idx
+
+        plt.subplot(1, num_preds, idx + 1)
+        plt.imshow(img)
+        plt.imshow(mask, alpha=0.5)
+        plt.title(cls_txt)
+
+    plt.show()
+
+
 def intersect_and_union(pred_embs: np.array,
                         label: np.array,
                         num_classes: int,
@@ -96,6 +139,13 @@ def intersect_and_union(pred_embs: np.array,
     scale_w = pred_w / label_w
     if scale_h != 1. and scale_w != 1.:
         label = zoom(label, (scale_h, scale_w), order=0)
+
+    # ['couch', 'furniture', 'other']
+    # ['couch', 'other']
+    # ['furniture', 'other']
+    # viz_predictions(pred_embs, ['furniture', 'other'],
+    #                 cls_txt2cls_idx, cls_embs)
+    # exit()
 
     # Transform semantics --> label probability --> seg map (H,W)
     pred_embs = torch.tensor(pred_embs).unsqueeze(0)
