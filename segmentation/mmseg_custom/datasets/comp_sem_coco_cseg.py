@@ -764,7 +764,7 @@ class CompSemCOCOCsegDataset(CustomDataset):
 
         return x_boundary
 
-    def comp_sim(self, pred_embs, indices, max_count=int(1e5)):
+    def comp_sim(self, pred_embs, indices, max_count=int(1e4)):
         """Computes  a list of similarity values for each dataset semantic.
 
         Args:
